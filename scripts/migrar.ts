@@ -10,7 +10,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { neon } from '@neondatabase/serverless';
+import { Client } from '@neondatabase/serverless';
 
 const pasta = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
 
@@ -20,18 +20,25 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = neon(url);
+// `neon()` (HTTP) prepara cada `query()` como prepared statement e recusa
+// múltiplos comandos por chamada; os arquivos de migração têm vários `;`,
+// então aqui precisa do `Client` (websocket, protocolo simple query).
+const client = new Client(url);
 
 async function main() {
-  await sql`
+  await client.connect();
+
+  await client.query(`
     create table if not exists _migracao (
       arquivo    text primary key,
       aplicada_em timestamptz not null default now()
     )
-  `;
+  `);
 
   const aplicadas = new Set(
-    (await sql`select arquivo from _migracao`).map((r) => r.arquivo as string),
+    (await client.query('select arquivo from _migracao')).rows.map(
+      (r) => r.arquivo as string,
+    ),
   );
 
   const arquivos = (await readdir(pasta))
@@ -45,13 +52,14 @@ async function main() {
     const corpo = await readFile(join(pasta, arquivo), 'utf8');
     process.stdout.write(`aplicando ${arquivo} ... `);
     try {
-      // `transaction` agrupa os comandos; o Neon HTTP aceita múltiplos statements
-      // por chamada quando enviados assim.
-      await sql.transaction([sql.query(corpo)]);
-      await sql`insert into _migracao (arquivo) values (${arquivo})`;
+      await client.query('begin');
+      await client.query(corpo);
+      await client.query('insert into _migracao (arquivo) values ($1)', [arquivo]);
+      await client.query('commit');
       console.log('ok');
       novas++;
     } catch (erro) {
+      await client.query('rollback');
       console.log('FALHOU');
       console.error(erro);
       process.exit(1);
@@ -63,6 +71,8 @@ async function main() {
       ? 'Nada a fazer: o banco já está na última migração.'
       : `${novas} migração(ões) aplicada(s).`,
   );
+
+  await client.end();
 }
 
 main();

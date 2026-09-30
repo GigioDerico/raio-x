@@ -10,9 +10,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/testes.ts",
-    "db:migrate": "tsx scripts/migrar.ts",
+    "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/migrar.ts",
     "hash-senha": "tsx scripts/hash-senha.ts",
-    "conectores": "tsx scripts/atualizar-conectores.ts"
+    "conectores": "node --env-file-if-exists=.env.local --import tsx scripts/atualizar-conectores.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.0",
@@ -31,6 +31,6 @@
     "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.9"
   }
 }
