@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# segredos — nunca commitar
+.env
+.env.local
+.env.*.local
+
+# dados reais, em qualquer formato
+*.dump
+*.sql.gz
+faturas/
+*.pdf
+
+.DS_Store

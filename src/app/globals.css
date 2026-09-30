@@ -1,0 +1,281 @@
+:root {
+  --fundo: #fbfbfa;
+  --superficie: #ffffff;
+  --borda: #e4e2dd;
+  --texto: #1a1917;
+  --texto-suave: #6b6862;
+  --acento: #1f6feb;
+  --perigo: #b91c1c;
+  --raio: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #141413;
+    --superficie: #1c1c1a;
+    --borda: #2e2e2b;
+    --texto: #f2f1ee;
+    --texto-suave: #9a968e;
+    --acento: #6ea8fe;
+    --perigo: #f87171;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 5rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.25rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 2rem 0 0.5rem;
+}
+
+p {
+  margin: 0.5rem 0;
+}
+
+.suave {
+  color: var(--texto-suave);
+}
+
+.cartao {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 1.25rem;
+  margin: 1rem 0;
+}
+
+label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+  margin-bottom: 0.35rem;
+}
+
+input[type='password'],
+input[type='text'] {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  color: var(--texto);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+button {
+  margin-top: 0.85rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--acento);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button[disabled] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.erro {
+  margin-top: 0.75rem;
+  color: var(--perigo);
+  font-size: 0.9rem;
+}
+
+ol,
+ul {
+  padding-left: 1.15rem;
+}
+
+li {
+  margin: 0.2rem 0;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  padding: 0.05em 0.35em;
+}
+
+.login {
+  max-width: 22rem;
+  margin: 12vh auto 0;
+  padding: 0 1.25rem;
+}
+
+/* ---------- fatia 2: lançamentos ---------- */
+
+main {
+  max-width: 52rem;
+}
+
+.topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+select {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  color: var(--texto);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+/* categoria que VOCÊ corrigiu: marcada, para não se confundir com palpite da IA */
+select.seu {
+  border-color: var(--acento);
+}
+
+button.link {
+  margin: 0;
+  padding: 0.2rem 0.4rem;
+  font-weight: 500;
+  color: var(--acento);
+  background: none;
+}
+
+button.link.perigo {
+  color: var(--perigo);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.filtros input[type='text'] {
+  flex: 1 1 14rem;
+  width: auto;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.aviso,
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  margin: 0.75rem 0;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  font-size: 0.9rem;
+}
+
+.barra button {
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.lancs {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  overflow: hidden;
+}
+
+.lancs li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  background: var(--superficie);
+  border-top: 1px solid var(--borda);
+}
+
+.lancs li:first-child {
+  border-top: 0;
+}
+
+.lancs li.marcado {
+  background: color-mix(in srgb, var(--acento) 8%, var(--superficie));
+}
+
+.quem {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.quem strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quem small {
+  font-size: 0.8rem;
+}
+
+.valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 34rem) {
+  .lancs li {
+    grid-template-columns: auto 1fr auto;
+    row-gap: 0.4rem;
+  }
+  .lancs li select {
+    grid-column: 2 / 4;
+  }
+}

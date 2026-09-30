@@ -1,0 +1,45 @@
+name: Atualizar lista de conectores
+
+on:
+  schedule:
+    # segunda-feira, 09:30 UTC (06:30 em Brasília)
+    - cron: '30 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    # forks não têm as chaves; sem elas o passo falharia toda semana
+    if: github.repository_owner == github.event.repository.owner.login
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Buscar conectores no Pluggy
+        run: npm run conectores
+        env:
+          PLUGGY_CLIENT_ID: ${{ secrets.PLUGGY_CLIENT_ID }}
+          PLUGGY_CLIENT_SECRET: ${{ secrets.PLUGGY_CLIENT_SECRET }}
+
+      - name: Abrir PR se algo mudou
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: conectores/atualizacao
+          commit-message: 'docs: atualiza lista de instituições suportadas'
+          title: 'Atualiza lista de instituições suportadas'
+          body: |
+            Gerado por `npm run conectores`.
+
+            Mudança vinda da própria API do Pluggy — instituição nova, saída,
+            ou produto que passou a ser suportado.
+          add-paths: |
+            README.md
+            docs/conectores.md
