@@ -91,6 +91,11 @@ export function validarConfig(corpo: unknown): Validado<MudancaConfig> {
   return { ok: true, mudanca: m };
 }
 
+/** Dia de fechamento e de vencimento só fazem sentido no cartão; conta corrente aceita só o apelido. */
+export function tiposDeContaQuePodemMudar(m: MudancaConta): ('cartao_credito' | 'conta_corrente')[] {
+  return 'diaFechamento' in m || 'diaVencimento' in m ? ['cartao_credito'] : ['cartao_credito', 'conta_corrente'];
+}
+
 export function validarConta(corpo: unknown): Validado<MudancaConta> {
   const c = objeto(corpo);
   const m: MudancaConta = {};

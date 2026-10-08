@@ -1,11 +1,11 @@
 import 'server-only';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { nomeDaConta } from './txn-repo';
 import { db } from '@/db';
 import { env } from '@/env';
 import { account, institution, statement, userSetting } from '@/db/schema';
 import { configDoUsuario } from './calculos/adaptador';
-import type { CartaoAjuste, MudancaConfig, MudancaConta } from './ajustes';
+import { tiposDeContaQuePodemMudar, type CartaoAjuste, type MudancaConfig, type MudancaConta } from './ajustes';
 
 const colunasConfig = {
   renda: userSetting.rendaDeclarada,
@@ -50,7 +50,7 @@ export async function salvarConta(userId: string, id: string, m: MudancaConta) {
   const [linha] = await db
     .update(account)
     .set(m)
-    .where(and(eq(account.id, id), eq(account.userId, userId), eq(account.kind, 'cartao_credito')))
+    .where(and(eq(account.id, id), eq(account.userId, userId), inArray(account.kind, tiposDeContaQuePodemMudar(m))))
     .returning({
       id: account.id,
       apelido: account.apelido,
@@ -79,5 +79,14 @@ export async function listarCartoes(userId: string): Promise<CartaoAjuste[]> {
     .leftJoin(statement, eq(statement.accountId, account.id))
     .where(and(eq(account.userId, userId), eq(account.kind, 'cartao_credito')))
     .groupBy(account.id, institution.nome)
+    .orderBy(asc(nomeDaConta), asc(account.last4));
+}
+
+export async function listarContasCorrentes(userId: string) {
+  return db
+    .select({ id: account.id, banco: nomeDaConta, last4: account.last4, apelido: account.apelido })
+    .from(account)
+    .innerJoin(institution, eq(institution.id, account.institutionId))
+    .where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente'), eq(account.ativo, true)))
     .orderBy(asc(nomeDaConta), asc(account.last4));
 }

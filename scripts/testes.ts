@@ -29,7 +29,7 @@ import { completarComCookie, deParametros, ehUuid, filtroParaLembrar, lerFiltro,
 import { candidatosDoSuspeito, validarDecisao, type LinhaDup } from '../src/lib/duplicados';
 import { avisoIgnorados, ErroLocal, FalhaHttp, FalhaRede, mensagemDeFalha, textoDoErro } from '../src/lib/falha';
 import { fraseDoVazio, linksDoVazio, nomesDosCartoes, queryDoVazio } from '../src/lib/vazio';
-import { formatarCampo, linhaDoCartao, validarConfig, validarConta, type CartaoAjuste } from '../src/lib/ajustes';
+import { formatarCampo, linhaDoCartao, validarConfig, validarConta, tiposDeContaQuePodemMudar, type CartaoAjuste } from '../src/lib/ajustes';
 import { resumoGasto } from '../src/lib/ia-gasto';
 import { limiteDeIA, POR_10_MIN, POR_DIA, textoLimiteIA } from '../src/lib/ia-limite';
 import { ipDaRequisicao, SEM_IP } from '../src/lib/ip';
@@ -721,6 +721,7 @@ async function main() {
   checar('ajustes dia vazio ou nulo limpa', okA({ diaFechamento: '' })?.diaFechamento === null && okA({ diaVencimento: null })?.diaVencimento === null);
   checar('ajustes dia fora de 1 a 31 é erro', ['0', '32', 1.5, 'abc', '1.5', -3, [7], true].every((d) => erroA({ diaFechamento: d }) === 'dia_invalido'));
   checar('ajustes conta ignora campos estranhos', JSON.stringify(okA({ apelido: 'X', user_id: 'u', limite: '9999', kind: 'conta_corrente' })) === JSON.stringify({ apelido: 'X' }));
+  checar('ajustes conta corrente só muda apelido; dias só no cartão', JSON.stringify(tiposDeContaQuePodemMudar({ apelido: 'X' })) === JSON.stringify(['cartao_credito', 'conta_corrente']) && JSON.stringify(tiposDeContaQuePodemMudar({ diaFechamento: 5 })) === JSON.stringify(['cartao_credito']) && JSON.stringify(tiposDeContaQuePodemMudar({ apelido: 'X', diaVencimento: null })) === JSON.stringify(['cartao_credito']));
   checar('ajustes conta só com campos estranhos é erro', erroA({ limite: '1', ativo: false }) === 'sem_mudanca' && erroA(null) === 'sem_mudanca');
 
   checar('ajustes formata dinheiro em pt-BR e esconde zero', formatarCampo('dinheiro', 8000) === '8.000,00' && formatarCampo('dinheiro', 0) === '' && formatarCampo('dinheiro', null) === '');

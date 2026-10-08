@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!v.ok) throw new ErroDeUso(v.codigo, v.mensagem);
     // id que não é uuid faria o Postgres estourar (503); tem de ser o mesmo 404 de um id alheio
     const conta = ehUuid(id) ? await salvarConta(userId, id, v.mudanca) : null;
-    if (!conta) throw new ErroDeUso('nao_encontrado', 'cartão não encontrado', 404);
+    if (!conta) throw new ErroDeUso('nao_encontrado', 'conta não encontrada', 404);
     return { ok: true, conta };
   });
 }

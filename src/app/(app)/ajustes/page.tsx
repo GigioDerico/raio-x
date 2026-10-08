@@ -2,7 +2,7 @@ import Link from 'next/link';
 import ApagarTudo from '@/components/ajustes/ApagarTudo';
 import CampoAjuste from '@/components/ajustes/CampoAjuste';
 import { formatarCampo, linhaDoCartao } from '@/lib/ajustes';
-import { lerConfig, listarCartoes } from '@/lib/ajustes-repo';
+import { lerConfig, listarCartoes, listarContasCorrentes } from '@/lib/ajustes-repo';
 import { env } from '@/env';
 import { gastoDoMes } from '@/lib/ia-uso-repo';
 import { resumoGasto } from '@/lib/ia-gasto';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function Ajustes() {
   const userId = await exigirUsuario();
-  const [config, cartoes, gasto] = await Promise.all([lerConfig(userId), listarCartoes(userId), gastoDoMes(userId)]);
+  const [config, cartoes, contas, gasto] = await Promise.all([lerConfig(userId), listarCartoes(userId), listarContasCorrentes(userId), gastoDoMes(userId)]);
   const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
   const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
 
@@ -64,6 +64,28 @@ export default async function Ajustes() {
           ))
         )}
       </section>
+
+      {contas.length > 0 && (
+        <section className="cartao ajustes-bloco" aria-labelledby="aj-contas">
+          <h2 id="aj-contas">Contas correntes</h2>
+          {contas.map((c) => (
+            <div className="ajustes-cartao" key={c.id}>
+              <div className="ajustes-campos">
+                <CampoAjuste
+                  url={`/api/accounts/${c.id}`}
+                  campo="apelido"
+                  rotulo={`Apelido · ${c.banco}${c.last4 ? ` conta ••${c.last4}` : ''}`}
+                  tipo="texto"
+                  valor={formatarCampo('texto', c.apelido)}
+                  placeholder={c.banco}
+                  atualizarTela
+                />
+              </div>
+            </div>
+          ))}
+          <p className="ajustes-nota">Só os gastos da conta contam; o saldo não é guardado nem mostrado.</p>
+        </section>
+      )}
 
       <section className="cartao ajustes-bloco" aria-labelledby="aj-bancos">
         <h2 id="aj-bancos">Bancos conectados</h2>
