@@ -29,8 +29,8 @@ type OpcoesCartao = {
 
 /**
  * Faturas e lançamentos da janela de um cartão do usuário, gravados, com os
- * novos categorizados. `null` se o cartão não é dele, não é cartão ou não veio
- * do Pluggy. Sem chave do Pluggy, `SemChavePluggy` sobe para quem chama.
+ * novos categorizados. Serve ao cartão e à conta corrente (6.0). `null` se a
+ * conta não é dele, é de outro tipo ou não veio do Pluggy. Sem chave do Pluggy, `SemChavePluggy` sobe para quem chama.
  */
 export async function sincronizarCartao(
   userId: string,
@@ -39,11 +39,19 @@ export async function sincronizarCartao(
   opcoes: OpcoesCartao = {},
 ): Promise<ResultadoCartao | null> {
   const [conta] = await db
-    .select({ id: account.id, pluggyAccountId: account.pluggyAccountId, connectionId: account.connectionId })
+    .select({ id: account.id, kind: account.kind, pluggyAccountId: account.pluggyAccountId, connectionId: account.connectionId })
     .from(account)
-    .where(and(eq(account.id, accountId), eq(account.userId, userId), eq(account.kind, 'cartao_credito'), isNotNull(account.pluggyAccountId)))
+    .where(
+      and(
+        eq(account.id, accountId),
+        eq(account.userId, userId),
+        inArray(account.kind, ['cartao_credito', 'conta_corrente']),
+        isNotNull(account.pluggyAccountId),
+      ),
+    )
     .limit(1);
   if (!conta?.pluggyAccountId) return null;
+  const kind = conta.kind === 'conta_corrente' ? 'conta_corrente' : 'cartao_credito';
 
   const agora = new Date();
   let periodo = janelaInicial(agora);
@@ -63,10 +71,11 @@ export async function sincronizarCartao(
   }
 
   const [faturas, transacoes] = await Promise.all([
-    pluggy().faturas(conta.pluggyAccountId),
+    // conta corrente não tem fatura
+    kind === 'cartao_credito' ? pluggy().faturas(conta.pluggyAccountId) : Promise.resolve([]),
     pluggy().transacoes(conta.pluggyAccountId, periodo.de, periodo.ate),
   ]);
-  const { inseridos, ...resultado } = await sincronizarConta(userId, conta.id, faturas, transacoes, conta.connectionId);
+  const { inseridos, ...resultado } = await sincronizarConta(userId, conta.id, faturas, transacoes, conta.connectionId, kind);
   const cfg = await configuracoes(userId);
   const cat = await categorizarPendentes(userId, conta.id, inseridos, cfg?.modeloIa);
   if (conta.connectionId) {

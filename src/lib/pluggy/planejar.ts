@@ -24,6 +24,7 @@ export type Existente = {
   installmentId: string | null;
   // PDF que o dono ligou a uma compra do Pluggy pelo "É este" (4.2b)
   duplicadoDe: string | null;
+  pessoaFisica: boolean;
 };
 
 export type RecebidoComOrdinal = Recebido & { ordinal: number };
@@ -195,6 +196,7 @@ export type CamposDoUpdate = {
   pendente: boolean;
   pluggyTxnId?: string;
   fonte?: 'pluggy';
+  pessoaFisica?: true;
 };
 
 /**
@@ -214,6 +216,10 @@ export function camposDaAcao(acao: Acao, existente: Existente | undefined): Camp
   // encargo parcelado, fixo, pagamento e parcela vieram do PDF ou do dono
   if (r.tipo !== 'escolha' && (!existente || existente.tipo === 'escolha')) campos.tipo = r.tipo;
   if (r.parcela) campos.parcelaN = r.parcela.n;
+  // só sobe: a linha do PDF (que não sabe quem recebeu) ou um sync anterior sem
+  // o paymentData podem tê-la gravado como não privada; o contrário não vale —
+  // um sync que deixe de ver o CPF não devolve o nome à IA
+  if (r.pessoaFisica && !existente?.pessoaFisica) campos.pessoaFisica = true;
   if (acao.tipo === 'promover') {
     campos.pluggyTxnId = r.pluggyTxnId;
     campos.fonte = 'pluggy';

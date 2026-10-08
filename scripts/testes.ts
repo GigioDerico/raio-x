@@ -16,6 +16,8 @@ import {
   normalizarDescricao,
   parecido,
   parseValor,
+  pareceTransferenciaParaPessoa,
+  podeAprender,
   LIMIAR_PARECIDO,
   somarMeses,
 } from '../src/lib/descricao';
@@ -47,7 +49,7 @@ import type { Projecao } from '../src/lib/calculos/parcelas';
 import { montarPrevisto, previsto } from '../src/lib/calculos/previsto';
 import { limparFixos, respostaTemCategorias, validarPrefs } from '../src/lib/plano-prefs';
 import { fraseSemPlano, subtituloPlano, notasDoPlano, feitoPara, planoTerminou } from '../src/lib/plano-texto';
-import { dadosDiagnostico, lerCategorias, mensagensConversa, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
+import { contextoParaIA, rotuloDaPessoa, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
 import { chaveRecorte, dadosResumo, lerResumo, lerTexto } from '../src/lib/calculos/resumo';
 import { markdownLeve } from '../src/lib/markdown-leve';
 import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/lib/ndjson';
@@ -55,8 +57,8 @@ import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuar
 import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
-import { recorrentesFixas } from '../src/lib/calculos/composicao';
-import { casarConta, contaDoPluggy, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
+import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
+import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
 import { janelaAtualizar, janelaInicial, precisaSincronizar } from '../src/lib/pluggy/janela';
 import { avisoDasConexoes, conexoesOrfas, estadoDaConexao, haQuanto } from '../src/lib/pluggy/estado';
 import { lerEventoPluggy } from '../src/lib/pluggy/webhook';
@@ -134,6 +136,12 @@ async function main() {
       chaveAprendizado('Assaí Atacadista São Paulo 9912'),
   );
   checar('chave de aprendizado tem no máximo 3 palavras', chaveAprendizado('A B C D E F').split(' ').length <= 3);
+  // 6.0, I1: o Pix para a pessoa e o Pix para a empresa caem na mesma chave;
+  // o apelido dado à pessoa voltaria pela regra no lançamento da empresa
+  checar('Pix para pessoa e para empresa têm a mesma chave de regra', chaveAprendizado('PIX ENVIADO CP MARIA SILVA') === chaveAprendizado('PIX ENVIADO CP PADARIA PAO QUENTE'));
+  checar('transferência para pessoa pela descrição', ['PIX TRANSF MARIA', 'TED 001 FULANO', 'DOC FULANO DE TAL', 'TRANSFERÊNCIA ENVIADA', 'Transf p/ Maria', 'pix enviado'].every(pareceTransferenciaParaPessoa));
+  checar('compra comum não parece transferência', !['DOCERIA DA ANA', 'TEDDY BAR', 'PIXEL STORE', 'MERCADO LIVRE', 'PAGTO BOLETO ESCOLA'].some(pareceTransferenciaParaPessoa));
+  checar('pessoa física não ensina regra', !podeAprender({ pessoaFisica: true }) && podeAprender({ pessoaFisica: false }));
   checar(
     'PIX e transferência para a mesma pessoa são o mesmo estabelecimento',
     mesmoEstabelecimento('TRANSFERENCIA PARA ADRIANA MARTINS', 'PIX ADRIANA MARTINS'),
@@ -304,7 +312,7 @@ async function main() {
   const linha = (x: Partial<LinhaPainel>): LinhaPainel => ({
     statementId: 's1', accountId: 'c1', mes: '2026-07', banco: 'Sicredi', last4: '2222', apelidoConta: null,
     desc: 'LOJA', limpa: null, apelido: null, valor: '10.00', categoria: 'Outros', tipo: 'escolha', parcelaN: null,
-    totalParcelas: null, vencimento: null, data: '2026-07-01', aberta: false, fechamento: null, ...x,
+    totalParcelas: null, vencimento: null, data: '2026-07-01', aberta: false, fechamento: null, privado: false, ...x,
   });
   const mf = montarFaturas([
     linha({ desc: 'RENNER', valor: '149.90', tipo: 'parcela', parcelaN: 3, totalParcelas: 3, categoria: 'Compras & Vestuário' }),
@@ -749,7 +757,7 @@ async function main() {
 
   const ctxPlano = contexto(null, faturasDeTeste(), { renda: 2000, metaPoupanca: 20, foraCartao: 0 });
   const mtPlano = metasDoPlano(ctxPlano, PREFS_PADRAO)!;
-  const prompt = promptPlano(mtPlano, PREFS_PADRAO, recorrentesFixas(ctxPlano));
+  const prompt = promptPlano(mtPlano, PREFS_PADRAO, ctxPlano);
   checar('promptPlano traz categorias, tetos e preferências', mtPlano.cats.slice(0, 8).every((c) => prompt.includes(c.cat)) && mtPlano.meses.every((m) => prompt.includes(rotuloMes(m.mes))) && prompt.includes('Em três passos (recomendado)') && prompt.includes('NETFLIX COM'));
   checar('promptPlano não vaza cartão, banco nem id', ['1111', '2222', 'Itaú', 'Nubank', 'Azul', 'a-2026', 'b-2026'].every((s) => !prompt.includes(s)));
 
@@ -774,11 +782,16 @@ async function main() {
   const cCartao = contaDoPluggy(CONTA_CARTAO);
   checar('pluggy conta de cartão', JSON.stringify(cCartao) === JSON.stringify({ pluggyAccountId: 'pa-cartao', kind: 'cartao_credito', last4: '1111', nomeOrigem: 'Itaú Uniclass Visa', limite: 8000 }));
   const cCorrente = contaDoPluggy(CONTA_CORRENTE);
-  checar('pluggy conta corrente e poupança', cCorrente.kind === 'conta_corrente' && cCorrente.last4 === '3456' && cCorrente.nomeOrigem === 'Conta Corrente' && cCorrente.limite === null && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'SAVINGS_ACCOUNT' }).kind === 'poupanca' && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'PAYMENT_ACCOUNT' }).kind === 'conta_pagamento');
+  checar('pluggy conta corrente e poupança', cCorrente.kind === 'conta_corrente' && cCorrente.last4 === '3456' && cCorrente.nomeOrigem === null && cCorrente.limite === null && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'SAVINGS_ACCOUNT' }).kind === 'poupanca' && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'PAYMENT_ACCOUNT' }).kind === 'conta_pagamento');
+  checar('pluggy conta corrente leva o banco do código COMPE, não o name', contaDoPluggy({ ...CONTA_CORRENTE, bankData: { transferNumber: '341/0001/00012345-6' } }).nomeOrigem === 'Itaú' && contaDoPluggy({ ...CONTA_CORRENTE, name: NOME_TITULAR, bankData: { transferNumber: '999/0001/1' } }).nomeOrigem === null && bancoDoCodigo('033/0001/1') === 'Santander' && bancoDoCodigo(null) === null);
   const vazou = (x: unknown) => [NOME_TITULAR, CPF_TITULAR, CNPJ_LOJA, '1234.5', '9876.54', 'documentNumber'].some((s) => JSON.stringify(x).includes(s));
   checar('pluggy conta não leva nome, CPF nem saldo', !vazou(cCartao) && !vazou(cCorrente));
 
   const l1 = lancamentoDoPluggy(tx())!;
+  // 6.0, I4: no cartão também, pela mesma regra; com CNPJ, não
+  checar('cartão: Pix para pessoa é pessoa física', lancamentoDoPluggy(tx({ description: 'PIX FULANO DE TAL', descriptionRaw: 'PIX FULANO DE TAL' }))!.pessoaFisica === true && lancamentoDoPluggy(tx())!.pessoaFisica === false);
+  checar('cartão: Pix com CNPJ não é pessoa física', lancamentoDoPluggy(tx({ description: 'PIX PADARIA', descriptionRaw: 'PIX PADARIA', paymentData: { receiver: { documentNumber: { type: 'CNPJ', value: CNPJ_LOJA } } } }))!.pessoaFisica === false);
+  checar('cartão: papel continua indefinido e Pix para pessoa fica em Outros', (() => { const r = lancamentoDoPluggy(tx({ description: 'PIX FULANO', descriptionRaw: 'PIX FULANO' }))!; const d = destinoNoSync(r, null); return r.papel === undefined && d.papel === 'gasto' && !d.vaiParaIA && d.outros; })());
   checar('pluggy lançamento simples', l1.pluggyTxnId === 'pt-1' && l1.data === '2026-04-10' && l1.valor === 120 && l1.descOrigem === 'IFOOD *RESTAURANTE' && l1.descNorm === normalizarDescricao('IFOOD *RESTAURANTE') && l1.tipo === 'escolha' && l1.parcela === null && l1.billId === 'bill-05' && l1.pendente === false);
   checar('pluggy lançamento não leva pagador nem estabelecimento', !vazou(l1));
   checar('pluggy data em São Paulo', lancamentoDoPluggy(tx({ date: '2026-09-05T23:30:00Z', creditCardMetadata: null }))!.data === '2026-09-05' && lancamentoDoPluggy(tx({ date: '2026-09-06T02:00:00Z', creditCardMetadata: null }))!.data === '2026-09-05');
@@ -799,6 +812,76 @@ async function main() {
   checar('pluggy pendente', lancamentoDoPluggy(tx({ status: 'PENDING' }))!.pendente === true);
   checar('pluggy descrição sem raw usa a limpa', lancamentoDoPluggy(tx({ descriptionRaw: null }))!.descOrigem === 'IFOOD RESTAURANTE');
   checar('pluggy lançamento malformado é descartado', lancamentoDoPluggy(tx({ id: '' })) === null && lancamentoDoPluggy(tx({ amount: '120' as unknown as number })) === null && lancamentoDoPluggy(tx({ amount: Number.NaN })) === null && lancamentoDoPluggy(tx({ date: 'ontem', creditCardMetadata: null })) === null && lancamentoDoPluggy(tx({ creditCardMetadata: { purchaseDate: '2026-02-30' } })) === null);
+  // ---- pluggy: conta corrente (6.0) ----------------------------------------
+  process.stdout.write('\n');
+
+  // lançamento de conta: sem metadado de cartão, sem merchant, sem pagamento por padrão
+  const txc = (o: Partial<Parameters<typeof lancamentoDaConta>[0]> = {}) =>
+    tx({ creditCardMetadata: null, merchant: null, paymentData: null, type: 'DEBIT', amount: -80, description: 'CONTA LUZ', descriptionRaw: 'CONTA LUZ', ...o });
+  const doc = (tipo: 'CPF' | 'CNPJ', valor: string) => ({ documentNumber: { type: tipo, value: valor } });
+  const CPF_OUTRA_PESSOA = '987.654.321-00';
+
+  const cDeb = lancamentoDaConta(txc())!;
+  checar('conta débito vira gasto positivo', cDeb.valor === 80 && cDeb.papel === 'gasto' && cDeb.tipo === 'escolha' && cDeb.pessoaFisica === false && cDeb.parcela === null && cDeb.billId === null && cDeb.data === '2026-04-10' && cDeb.dataLancamento === '2026-04-10');
+  checar('conta débito com amount positivo continua positivo', lancamentoDaConta(txc({ amount: 80 }))!.valor === 80);
+  const cCred = lancamentoDaConta(txc({ type: 'CREDIT', amount: 5000, description: 'SALARIO EMPRESA X', descriptionRaw: 'SALARIO EMPRESA X' }))!;
+  checar('conta crédito vira entrada negativa', cCred.valor === -5000 && cCred.papel === 'entrada');
+  checar('conta sem type usa o sinal do Pluggy invertido', lancamentoDaConta(txc({ type: undefined, amount: -30 }))!.valor === 30 && lancamentoDaConta(txc({ type: undefined, amount: 30 }))!.valor === -30);
+
+  const papelDe = (d: string, o: Partial<Parameters<typeof lancamentoDaConta>[0]> = {}) => lancamentoDaConta(txc({ amount: -1500, description: d, descriptionRaw: d, ...o }))!.papel;
+  // "PAG FATURA ITAU" saiu daqui: sem a palavra cartão é ambíguo, e conta de consumo também é "fatura"
+  checar('conta pagamento de fatura não conta',
+    ['PAGAMENTO FATURA CARTAO', 'PAG FATURA CARTAO ITAU', 'PGTO CARTAO CREDITO', 'PAGTO CARTAO CREDITO', 'DEB AUT CARTAO CREDITO', 'PG CARTÃO', 'Pagamento de fatura cartão'].every((d) => papelDe(d) === 'fora') &&
+    lancamentoDaConta(txc({ category: 'Credit card payment', description: 'X', descriptionRaw: 'X' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ operationType: 'PAGAMENTO_FATURA' }))!.papel === 'fora');
+  checar('conta transferência própria não conta',
+    lancamentoDaConta(txc({ description: 'PIX TRANSF', descriptionRaw: 'PIX TRANSF', paymentData: { payer: doc('CPF', CPF_TITULAR), receiver: doc('CPF', '12345678900') } }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 300, category: 'Same person transfer' }))!.papel === 'fora');
+  checar('conta de consumo com "fatura" continua gasto', ['DEB AUTOMATICO FATURA VIVO', 'PAGTO FATURA CLARO', 'FATURA ENERGIA', 'COMPRA CARTAO DEB MERCADO'].every((d) => papelDe(d) === 'gasto'));
+  checar('transferência própria pela categoria com sufixo', papelDe('PIX ENVIADO', { category: 'Same person transfer - PIX' }) === 'fora' && papelDe('TED', { type: 'CREDIT', category: 'Same person transfer - TED' }) === 'fora' && papelDe('PIX ENVIADO', { category: 'Transfer - PIX' }) === 'gasto');
+  checar('transferência própria pela descrição', ['TRANSF ENTRE CONTAS', 'TRANSFERENCIA MESMA TITULARIDADE', 'PIX RECEBIDO MESMA TITULARIDADE', 'Transferência entre contas'].every((d) => papelDe(d) === 'fora'));
+  checar('conta Pix no crédito não conta (o gasto está na fatura)',
+    lancamentoDaConta(txc({ description: 'Pix enviado com cartão MARIA SILVA', descriptionRaw: 'Pix enviado com cartão MARIA SILVA' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'Crédito liberado para Pix CARTAO X', descriptionRaw: 'Crédito liberado para Pix CARTAO X' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ description: 'Pix enviado MARIA SILVA', descriptionRaw: 'Pix enviado MARIA SILVA' }))!.papel === 'gasto');
+  checar('conta aplicação e resgate não contam',
+    lancamentoDaConta(txc({ description: 'APLICACAO CDB', descriptionRaw: 'APLICACAO CDB' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 1000, description: 'RESGATE CDB', descriptionRaw: 'RESGATE CDB' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ category: 'Fixed income' }))!.papel === 'fora');
+  checar('conta estorno de loja é entrada, não fora', lancamentoDaConta(txc({ type: 'CREDIT', amount: 50, description: 'ESTORNO LOJA', descriptionRaw: 'ESTORNO LOJA' }))!.papel === 'entrada');
+
+  checar('conta tarifa é encargo', lancamentoDaConta(txc({ amount: -45, description: 'TARIFA PACOTE SERVICOS', descriptionRaw: 'TARIFA PACOTE SERVICOS' }))!.tipo === 'encargo');
+
+  const pix = (paymentData: unknown, d = 'PIX TRANSF MARIA') => txc({ description: d, descriptionRaw: d, paymentData });
+  checar('pessoa física pelo CPF do recebedor', lancamentoDaConta(pix({ payer: doc('CPF', CPF_TITULAR), receiver: doc('CPF', CPF_OUTRA_PESSOA) }))!.pessoaFisica === true);
+  checar('pessoa jurídica pelo CNPJ do recebedor', lancamentoDaConta(pix({ payer: doc('CPF', CPF_TITULAR), receiver: doc('CNPJ', CNPJ_LOJA) }, 'PIX QRS PADARIA'))!.pessoaFisica === false);
+  checar('Pix sem documento é pessoa física (conservador)', lancamentoDaConta(pix(null, 'PIX TRANSF JOAO'))!.pessoaFisica === true && lancamentoDaConta(pix(null, 'TED 001 FULANO'))!.pessoaFisica === true);
+  checar('boleto sem documento não é pessoa física', lancamentoDaConta(pix(null, 'PAGTO BOLETO ESCOLA'))!.pessoaFisica === false);
+  checar('sem documento, categoria de transferência é pessoa física', ehPessoaFisica(txc({ category: 'Transfer - PIX' }), 100, 'MARIA SILVA') && ehPessoaFisica(txc({ category: 'Transfers' }), 100, 'FULANO DE TAL'));
+  checar('categoria de transferência não vence o CNPJ nem pega a mesma pessoa', !ehPessoaFisica(txc({ category: 'Transfer - PIX', paymentData: { receiver: doc('CNPJ', CNPJ_LOJA) } }), 100, 'PADARIA') && !ehPessoaFisica(txc({ category: 'Same person transfer - PIX' }), 100, 'CONTA X') && !ehPessoaFisica(txc({ category: 'Groceries' }), 100, 'MERCADO'));
+  checar('crédito olha o pagador', ehPessoaFisica(txc({ type: 'CREDIT', paymentData: { payer: doc('CPF', CPF_OUTRA_PESSOA), receiver: doc('CPF', CPF_TITULAR) } }), -100, 'PIX RECEBIDO') === true);
+
+  const cPix = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA', ...doc('CNPJ', CNPJ_LOJA) } }))!;
+  // o nome da outra ponta pode estar na descrição (é o que o banco escreve); o documento e o nome do titular nunca
+  checar('conta não leva documento nem titular', !vazou(cPix));
+  // o banco escreve o nome do titular na descrição; o paymentData diz quem ele é, e o nome sai antes de gravar
+  const comTitular = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'BANCO X', ...doc('CNPJ', CNPJ_LOJA) } }, `PIX ENVIADO ${NOME_TITULAR} BANCO X`))!;
+  checar('débito tira o nome do pagador (titular) da descrição', !vazou(comTitular) && comTitular.descOrigem === 'PIX ENVIADO BANCO X' && !comTitular.descNorm.includes('FULANO'));
+  const credTitular = lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'Pix recebido  fulano de tál da silva', descriptionRaw: 'Pix recebido  fulano de tál da silva', paymentData: { payer: { name: 'MARIA SILVA', ...doc('CPF', CPF_OUTRA_PESSOA) }, receiver: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } } }))!;
+  checar('crédito tira o nome do recebedor (titular), sem acento nem caixa', credTitular.descOrigem === 'Pix recebido' && !vazou(credTitular));
+  const mesmoDoc = lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'TED FULANO D TAL SILVA', descriptionRaw: 'TED FULANO D TAL SILVA', paymentData: { payer: { name: 'Fulano D Tal Silva', ...doc('CPF', CPF_TITULAR) }, receiver: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } } }))!;
+  checar('mesmo documento dos dois lados: os dois nomes saem', mesmoDoc.descOrigem === 'TED' && mesmoDoc.papel === 'fora');
+  checar('o nome da outra ponta fica (é o que o dono reconhece)', lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA SILVA', ...doc('CPF', CPF_OUTRA_PESSOA) } }, 'PIX TRANSF MARIA SILVA'))!.descOrigem === 'PIX TRANSF MARIA SILVA');
+  checar('descrição sem o nome fica como veio', lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } }, 'PIX  TRANSF   MARIA'))!.descOrigem === 'PIX  TRANSF   MARIA');
+  checar('nome dentro de outra palavra não é cortado', lancamentoDaConta(pix({ payer: { name: 'ANA', ...doc('CPF', CPF_TITULAR) } }, 'PIX MARIANA'))!.descOrigem === 'PIX MARIANA');
+  checar('conta malformada é descartada', lancamentoDaConta(txc({ id: '' })) === null && lancamentoDaConta(txc({ amount: Number.NaN })) === null && lancamentoDaConta(txc({ date: 'ontem' })) === null);
+  checar('papelDaConta direto', papelDaConta(txc(), 80, 'CONTA LUZ') === 'gasto' && papelDaConta(txc(), -80, 'PIX RECEBIDO') === 'entrada');
+
+  checar('destino: cartão continua indo à IA como gasto', JSON.stringify(destinoNoSync({}, null)) === JSON.stringify({ papel: 'gasto', vaiParaIA: true, outros: false }));
+  checar('destino: gasto para pessoa física fica em Outros e não vai à IA', JSON.stringify(destinoNoSync({ papel: 'gasto', pessoaFisica: true }, null)) === JSON.stringify({ papel: 'gasto', vaiParaIA: false, outros: true }));
+  checar('destino: entrada aprendida vira renda', destinoNoSync({ papel: 'entrada' }, 'renda').papel === 'renda' && destinoNoSync({ papel: 'entrada' }, null).papel === 'entrada');
+  checar('destino: regra de renda não mexe em gasto nem em fora', destinoNoSync({ papel: 'gasto' }, 'renda').papel === 'gasto' && destinoNoSync({ papel: 'fora' }, 'renda').papel === 'fora');
+  checar('destino: entrada, renda e fora não vão à IA', (['entrada', 'renda', 'fora'] as const).every((p) => !destinoNoSync({ papel: p }, null).vaiParaIA && !destinoNoSync({ papel: p }, null).outros));
   checar('pluggy fatura pelo vencimento', JSON.stringify(faturaDaBill(BILL)) === JSON.stringify({ pluggyBillId: 'bill-05', mesRef: '2026-05', vencimento: '2026-05-10', fechamento: null, total: 2345.67 }));
   checar('pluggy fatura com fechamento', faturaDaBill({ ...BILL, billClosingDate: '2026-05-01T00:00:00.000Z' }).fechamento === '2026-05-01');
 
@@ -821,7 +904,7 @@ async function main() {
   const ex = (o: Partial<Existente> = {}): Existente => ({
     id: 'e1', data: '2026-04-10', valor: 120, descNorm: desc, fonte: 'pdf', pluggyTxnId: null,
     dedupeKey: chaveDedupe(CONTA, '2026-04-10', 120, desc, 0), excluido: false,
-    tipo: 'escolha', pendente: false, parcelaN: null, statementId: null, installmentId: null, duplicadoDe: null, ...o,
+    tipo: 'escolha', pendente: false, parcelaN: null, statementId: null, installmentId: null, duplicadoDe: null, pessoaFisica: false, ...o,
   });
   const rec = (o: Partial<Recebido> = {}): Recebido => ({
     pluggyTxnId: 'pt-1', data: '2026-04-10', dataLancamento: '2026-04-10', valor: 120, descOrigem: 'IFOOD *RESTAURANTE', descNorm: desc,
@@ -930,11 +1013,16 @@ async function main() {
   const cProm = camposDaAcao(acaoDe('promover', rec({ pendente: true, valor: 130 })), ex());
   checar('camposDaAcao promover leva id e fonte', cProm.pluggyTxnId === 'pt-1' && cProm.fonte === 'pluggy' && !('pluggyTxnId' in cPostada) && !('fonte' in cPostada));
   checar('camposDaAcao linha postada não volta a pendente', cProm.pendente === false && !('valor' in cProm));
-  const cTudo = camposDaAcao(acaoDe('promover', parc(5, { pendente: true })), ex({ pendente: true }));
-  const permitidas = ['valor', 'tipo', 'parcelaN', 'pendente', 'pluggyTxnId', 'fonte'];
+  // 6.0, I2: o PDF não sabe quem recebeu o Pix; o Pluggy que sabe só marca, nunca desmarca
+  const cPfSobe = camposDaAcao(acaoDe('promover', rec({ pessoaFisica: true })), ex());
+  const cPfFica = camposDaAcao(acaoDe('atualizar', rec({ pessoaFisica: false })), ex({ pessoaFisica: true }));
+  const cPfJa = camposDaAcao(acaoDe('atualizar', rec({ pessoaFisica: true })), ex({ pessoaFisica: true }));
+  checar('camposDaAcao pessoa física só sobe', cPfSobe.pessoaFisica === true && !('pessoaFisica' in cPfFica) && !('pessoaFisica' in cPfJa) && !('pessoaFisica' in cPostada));
+  const cTudo = camposDaAcao(acaoDe('promover', parc(5, { pendente: true, pessoaFisica: true })), ex({ pendente: true }));
+  const permitidas = ['valor', 'tipo', 'parcelaN', 'pendente', 'pluggyTxnId', 'fonte', 'pessoaFisica'];
   checar('camposDaAcao só mexe nos campos permitidos',
     permitidas.every((k) => k in cTudo) &&
-    [cPostada, cPendente, cPag, cParc, cEncargo, cFixo, cProm, cTudo].every((c) => Object.keys(c).every((k) => permitidas.includes(k))));
+    [cPostada, cPendente, cPag, cParc, cEncargo, cFixo, cProm, cTudo, cPfSobe].every((c) => Object.keys(c).every((k) => permitidas.includes(k))));
 
   // ---- pluggy: cliente -----------------------------------------------------
   process.stdout.write('\n');
@@ -1068,12 +1156,13 @@ async function main() {
   const linhaCsv = (o: Partial<LinhaCsv> = {}): LinhaCsv => ({
     mes: '2026-09', banco: 'Itaú', cartao: '1111', data: '2026-09-03', desc: 'IFOOD *RESTAURANTE', limpa: null, apelido: null,
     categoria: 'Restaurantes & Delivery', parcelaN: null, totalParcelas: null, tipo: 'escolha', valor: 120.5,
-    cartaoApelido: 'Itaú - Azul', fonte: 'pdf', ...o,
+    cartaoApelido: 'Itaú - Azul', fonte: 'pdf', papel: 'gasto', ...o,
   });
-  const csv = montarCsv([linhaCsv(), linhaCsv({ desc: 'Loja "Boa"', apelido: 'Presente', parcelaN: 3, totalParcelas: 10, tipo: 'parcela', valor: 300 }), linhaCsv({ desc: '=HYPERLINK("http://x")', valor: -30, fonte: 'pluggy' })]);
+  const csv = montarCsv([linhaCsv(), linhaCsv({ desc: 'Loja "Boa"', apelido: 'Presente', parcelaN: 3, totalParcelas: 10, tipo: 'parcela', valor: 300 }), linhaCsv({ desc: '=HYPERLINK("http://x")', valor: -30, fonte: 'pluggy' }), linhaCsv({ desc: 'PIX RECEBIDO', valor: -5000, fonte: 'pluggy', papel: 'renda', cartao: '3456', tipo: 'escolha' })]);
   const linhasCsv = csv.split('\r\n');
-  checar('csv começa com BOM e cabeçalho do legado', csv.startsWith('﻿') && linhasCsv[0] === '﻿"mes_fatura";"banco";"cartao";"data";"estabelecimento_na_fatura";"meu_nome";"categoria";"parcela";"tipo";"valor";"cartao_apelido";"fonte"');
-  checar('csv linha simples', linhasCsv[1] === '"2026-09";"Itaú";"1111";"2026-09-03";"IFOOD *RESTAURANTE";"IFOOD *RESTAURANTE";"Restaurantes & Delivery";"";"escolha";"120,50";"Itaú - Azul";"pdf"');
+  checar('csv começa com BOM e cabeçalho do legado', csv.startsWith('﻿') && linhasCsv[0] === '﻿"mes_fatura";"banco";"cartao";"data";"estabelecimento_na_fatura";"meu_nome";"categoria";"parcela";"tipo";"valor";"cartao_apelido";"fonte";"papel"');
+  checar('csv linha simples', linhasCsv[1] === '"2026-09";"Itaú";"1111";"2026-09-03";"IFOOD *RESTAURANTE";"IFOOD *RESTAURANTE";"Restaurantes & Delivery";"";"escolha";"120,50";"Itaú - Azul";"pdf";"gasto"');
+  checar('csv leva o papel da conta corrente', linhasCsv[4]!.endsWith('"-5000,00";"Itaú - Azul";"pluggy";"renda"') && linhasCsv.length === 5);
   checar('csv aspas dobradas, apelido e parcela', linhasCsv[2]!.includes('"Loja ""Boa"""') && linhasCsv[2]!.includes('"Presente"') && linhasCsv[2]!.includes('"3/10"') && linhasCsv[2]!.includes('"300,00"'));
   checar('csv neutraliza fórmula em texto e não em valor', linhasCsv[3]!.includes(`"'=HYPERLINK(""http://x"")"`) && linhasCsv[3]!.includes('"-30,00"') && !linhasCsv[3]!.includes(`"'-30,00"`));
   checar('csv guarda também +, @, tab e CR no início', ['+1', '@x', '\tx', '\rx', '-x'].every((s) => montarCsv([linhaCsv({ desc: s })]).includes(`"'${s}`)));
@@ -1172,6 +1261,68 @@ async function main() {
   checar('conversa histórico não começa por fala da IA', mC2[2]!.content === 'fala 0' && mC2.every((m, i) => i === 0 || m.role !== mC2[i - 1]!.role));
   checar('conversa sem histórico', mensagensConversa(dC, null, [], 'oi').length === 3);
   checar('conversa não vaza cartão', mC.every((m) => ['1111', '2222', '••'].every((s) => !m.content.includes(s))));
+
+  // ---- pessoa física nos prompts agregados (6.0, C1) -----------------------
+  process.stdout.write('\n');
+
+  // Pix para a mesma pessoa três meses seguidos, com o apelido no lançamento e
+  // aprendido: vira fixa, entra nos maiores e no plano. Nada do nome pode sair.
+  const ctxPF = (() => {
+    const c = contexto(null, faturasDeTeste(), { renda: 20000, metaPoupanca: 20, foraCartao: 0 });
+    c.apelidos = { ...c.apelidos, 'PIX TRANSF MARIA SILVA': 'Maria' };
+    for (const f of c.faturas.filter((x) => x.banco === 'Itaú' && x.mesRef >= '2026-04')) {
+      f.lancamentos.push(
+        { desc: 'PIX TRANSF MARIA SILVA', apelido: f.mesRef === '2026-05' ? 'Maria' : null, val: 900, cat: 'Serviços & Profissional', parc: null, tipo: 'compra', privado: true },
+        { desc: 'PADARIA PAO QUENTE', apelido: null, val: 850, cat: 'Mercado & Padaria', parc: null, tipo: 'compra' },
+      );
+    }
+    return c;
+  })();
+  const semMaria = (s: string) => !s.includes('MARIA') && !s.includes('Maria');
+  const mascarado = contextoParaIA(ctxPF);
+  checar('contextoParaIA troca descrição e apelido do privado', semMaria(JSON.stringify(mascarado)) && mascarado.faturas.some((f) => f.lancamentos.some((l) => l.privado && l.desc === rotuloDaPessoa(0) && l.apelido === rotuloDaPessoa(0) && l.val === 900 && l.cat === 'Serviços & Profissional')));
+  checar('contextoParaIA não mexe no contexto da tela', JSON.stringify(ctxPF).includes('PIX TRANSF MARIA SILVA') && ctxPF.apelidos['PIX TRANSF MARIA SILVA'] === 'Maria');
+  checar('contextoParaIA sem privado devolve o mesmo contexto', contextoParaIA(ctxG) === ctxG);
+  const pPF = promptResumo(ctxPF, dadosResumo(ctxPF));
+  checar('resumo não leva o nome do Pix para pessoa física', semMaria(pPF) && pPF.includes(`${rotuloDaPessoa(0)} ${moeda(900)}`));
+  checar('resumo mantém o nome do que não é privado', pPF.includes(`PADARIA PAO QUENTE ${moeda(850)}`));
+  const dPF = dadosDiagnostico(ctxPF, false, null);
+  checar('diagnóstico não leva o nome do Pix para pessoa física', semMaria(dPF) && dPF.includes(`${rotuloDaPessoa(0)} ${moeda(900)}`));
+  checar('diagnóstico mantém o nome do que não é privado', dPF.includes('PADARIA PAO QUENTE'));
+  checar('conversa não leva o nome do Pix para pessoa física', mensagensConversa(dPF, null, [], 'quem é a maior?').every((m) => semMaria(m.content)));
+  // a fixa existe no contexto da tela com o nome: sem a máscara, o plano o levaria
+  checar('fixa do Pix aparece com o nome na tela', recorrentesFixas(ctxPF).some((r) => r.desc === 'Maria' || r.desc.includes('MARIA')));
+  const mtPF = metasDoPlano(ctxPF, PREFS_PADRAO)!;
+  const plPF = promptPlano(mtPF, PREFS_PADRAO, ctxPF);
+  checar('plano não leva o nome do Pix para pessoa física nas fixas', semMaria(plPF) && plPF.includes(`${normDesc(rotuloDaPessoa(0))}:`));
+
+  // ---- uma letra por pessoa (6.0, I3) ---------------------------------------
+  checar('rótulo da pessoa: letras, sem dígito', [0, 1, 25, 26, 27, 701, 702].map(rotuloDaPessoa).join('|') === 'Pix pessoa A|Pix pessoa B|Pix pessoa Z|Pix pessoa AA|Pix pessoa AB|Pix pessoa ZZ|Pix pessoa AAA');
+  checar('rótulos diferentes já nas 3 palavras de normDesc', new Set(Array.from({ length: 60 }, (_, i) => normDesc(rotuloDaPessoa(i)))).size === 60);
+  // duas pessoas todo mês (fixas) e uma de uma vez só: com um texto único para
+  // todas, as duas fixas viravam uma e a IA via outra composição que a da tela
+  const ctxPessoas = (() => {
+    const c = contexto(null, faturasDeTeste(), { renda: 20000, metaPoupanca: 20, foraCartao: 0 });
+    for (const f of c.faturas.filter((x) => x.banco === 'Itaú' && x.mesRef >= '2026-04')) {
+      f.lancamentos.push(
+        { desc: 'PIX TRANSF MARIA SILVA', apelido: null, val: 900, cat: 'Serviços & Profissional', parc: null, tipo: 'compra', privado: true },
+        { desc: 'TED FULANO DE TAL', apelido: null, val: 700, cat: 'Casa & Contas', parc: null, tipo: 'compra', privado: true },
+      );
+      if (f.mesRef === '2026-05') f.lancamentos.push({ desc: 'PIX BELTRANO SOUZA', apelido: null, val: 500, cat: 'Outros', parc: null, tipo: 'compra', privado: true });
+    }
+    return c;
+  })();
+  const mascPessoas = contextoParaIA(ctxPessoas);
+  const fixasTela = recorrentesFixas(ctxPessoas);
+  const fixasIA = recorrentesFixas(mascPessoas);
+  const pessoasNasFixas = fixasIA.filter((r) => r.desc.startsWith(PESSOA_FISICA_PARA_IA));
+  checar('duas pessoas mensais são duas fixas no mascarado, a avulsa nenhuma', pessoasNasFixas.length === 2 && new Set(pessoasNasFixas.map((r) => r.desc)).size === 2 && pessoasNasFixas.every((r) => r.medio === 900 || r.medio === 700));
+  checar('fixas do mascarado batem com as da tela', fixasIA.length === fixasTela.length && JSON.stringify(fixasIA.map((r) => [r.medio, r.meses, r.cat])) === JSON.stringify(fixasTela.map((r) => [r.medio, r.meses, r.cat])));
+  checar('composição do mascarado bate com a da tela', ['2026-04', '2026-05', '2026-06', null].every((m) => JSON.stringify(composicaoMes(mascPessoas, m)) === JSON.stringify(composicaoMes(ctxPessoas, m))));
+  checar('mascarado sem nome de ninguém', !/MARIA|FULANO|BELTRANO/i.test(JSON.stringify(mascPessoas)));
+  checar('mesma tela, mesmo prompt (hash do cache estável)', promptResumo(ctxPessoas, dadosResumo(ctxPessoas)) === promptResumo(ctxPessoas, dadosResumo(ctxPessoas)) && JSON.stringify(contextoParaIA(ctxPessoas)) === JSON.stringify(mascPessoas));
+  const pPessoas = promptResumo(ctxPessoas, dadosResumo(ctxPessoas));
+  checar('resumo: maiores lançamentos com a letra da pessoa no contexto', !/MARIA|FULANO|BELTRANO/i.test(pPessoas) && mascPessoas.faturas.some((f) => f.lancamentos.some((l) => l.val === 900 && pPessoas.includes(`${l.desc} ${moeda(900)}`))));
 
   checar('pergunta aparada', validarPergunta('  oi  ') === 'oi' && validarPergunta('a'.repeat(LIMITE_PERGUNTA)) !== null);
   checar('pergunta inválida', [undefined, null, 5, '', '   ', 'a'.repeat(LIMITE_PERGUNTA + 1)].every((v) => validarPergunta(v) === null));

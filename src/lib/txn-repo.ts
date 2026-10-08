@@ -11,7 +11,7 @@ import {
   statement,
   txn,
 } from '@/db/schema';
-import { chaveAprendizado, lerParcela, normalizarDescricao } from './descricao';
+import { chaveAprendizado, lerParcela, normalizarDescricao, pareceTransferenciaParaPessoa, podeAprender } from './descricao';
 import { chaveDedupe, comOrdinais } from './dedupe';
 import { candidatosDoSuspeito, type Decisao, type LinhaDup } from './duplicados';
 import { mesPorExtenso } from './filtro';
@@ -55,9 +55,13 @@ export type FiltroTxn = {
  */
 export const nomeDaConta = sql<string>`coalesce(${account.nomeOrigem}, ${institution.nome})`;
 
+// "Itaú conta" e "Itaú" (cartão) não podem aparecer iguais no filtro, no Hero e na lista
+export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.kind} = 'conta_corrente' then ' conta' else '' end`;
+
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento')];
+  // crédito, renda e o que não conta não são gasto: a 6.1 os mostra em Entradas e no "Não conta"
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
 
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
   // os ids vêm do cliente; o join da conta abaixo confirma a posse
@@ -92,7 +96,7 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
       pendente: txn.pendente,
       contaApelido: account.apelido,
       contaLast4: account.last4,
-      contaBanco: nomeDaConta,
+      contaBanco: rotuloDaConta,
     })
     .from(txn)
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
@@ -121,16 +125,16 @@ export const opcoesDoFiltro = cache(async (userId: string): Promise<OpcoesFiltro
     .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId)))
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
     // suspeito fica fora dos totais; um mês só de suspeitos apareceria vazio
-    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false)))
+    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), eq(txn.papel, 'gasto')))
     .orderBy(desc(mesDaTxn));
 
   const contas = await db
-    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: nomeDaConta })
+    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: rotuloDaConta })
     .from(account)
     .innerJoin(institution, eq(institution.id, account.institutionId))
-    // conta corrente e poupança do Pluggy esperam a fatia 6: o filtro é de cartões
-    .where(and(eq(account.userId, userId), eq(account.ativo, true), eq(account.kind, 'cartao_credito')))
-    .orderBy(asc(nomeDaConta), asc(account.last4));
+    // poupança e conta de pagamento continuam fora até alguém precisar delas
+    .where(and(eq(account.userId, userId), eq(account.ativo, true), inArray(account.kind, ['cartao_credito', 'conta_corrente'])))
+    .orderBy(asc(rotuloDaConta), asc(account.last4));
 
   return {
     meses: meses.map((m) => m.mes),
@@ -172,7 +176,7 @@ export async function atualizarTxn(userId: string, id: string, mudanca: Alteraca
     .update(txn)
     .set(campos)
     .where(and(eq(txn.id, id), eq(txn.userId, userId), isNull(txn.excluidoEm)))
-    .returning({ id: txn.id, descNorm: txn.descNorm, categoryId: txn.categoryId, apelido: txn.apelido });
+    .returning({ id: txn.id, descNorm: txn.descNorm, categoryId: txn.categoryId, apelido: txn.apelido, pessoaFisica: txn.pessoaFisica });
 
   // nessa ordem, no mesmo batch: o segundo lê o nome já com o apelido novo, se o
   // mesmo PATCH mudou o apelido, e ou muda tudo ou nada
@@ -185,13 +189,14 @@ export async function atualizarTxn(userId: string, id: string, mudanca: Alteraca
 
   // só categoria e apelido ensinam regra; corrigir o valor não pode virar
   // learned_label, senão um valor mal lido na próxima fatura reaprenderia o
-  // palpite errado da IA como se fosse decisão sua
-  if (mudanca.categoria !== undefined || mudanca.apelido !== undefined) {
+  // palpite errado da IA como se fosse decisão sua. Pix para pessoa física não
+  // ensina nada (`podeAprender`)
+  if ((mudanca.categoria !== undefined || mudanca.apelido !== undefined) && podeAprender(linha)) {
     await aprender(userId, linha.descNorm, linha.categoryId, linha.apelido);
   }
   // a regra aprendida segue para o alterado (como hoje) e para as variações do
   // nome que mudaram junto, para as próximas importações também acertarem
-  for (const chave of new Set(outros.map((o) => o.descNorm))) await aprender(userId, chave, linha.categoryId, undefined);
+  for (const chave of chavesQueEnsinam(outros)) await aprender(userId, chave, linha.categoryId, undefined);
   return { linha, outros: outros.length };
 }
 
@@ -224,25 +229,38 @@ export async function categorizarEmLote(userId: string, ids: string[], categoria
       .update(txn)
       .set({ categoryId, categoryFonte: 'manual' })
       .where(and(inArray(txn.id, ids), eq(txn.userId, userId), isNull(txn.excluidoEm)))
-      .returning({ id: txn.id, descNorm: txn.descNorm }),
+      .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica }),
     mesmaCategoriaPeloNome(userId, ids, categoryId),
   ]);
 
-  for (const chave of new Set([...linhas, ...outros].map((l) => l.descNorm))) await aprender(userId, chave, categoryId, undefined);
+  for (const chave of chavesQueEnsinam([...linhas, ...outros])) await aprender(userId, chave, categoryId, undefined);
   return { linhas, outros: outros.length };
+}
+
+/** As chaves de regra das linhas que podem ensinar: as de pessoa física ficam fora. */
+function chavesQueEnsinam(linhas: Array<{ descNorm: string; pessoaFisica: boolean }>): Set<string> {
+  return new Set(linhas.filter(podeAprender).map((l) => l.descNorm));
 }
 
 /**
  * Leva a categoria a todos os lançamentos com o mesmo nome na tela de algum dos
  * `ids` (pedido do dono, 3.8): trocar "Alane Ferreira" num mês troca nos outros.
- * Pagamento de fatura e excluído ficam fora. Devolve o update para ir no mesmo
- * batch do alterado — ou muda tudo, ou nada.
+ * Pagamento de fatura, excluído e o que não é gasto (crédito, renda, "não
+ * conta" da conta corrente) ficam fora: categoria é coisa de gasto, e um Pix
+ * recebido de alguém com o mesmo nome não pode virar "Mercado". Devolve o
+ * update para ir no mesmo batch do alterado — ou muda tudo, ou nada.
+ *
+ * Só alcança a mesma classe (`pessoa_fisica`) do alterado. Banco que escreve
+ * o Pix sem o nome ("PIX ENVIADO") põe pessoas e empresas sob o mesmo nome na
+ * tela: a categoria que o dono deu à pessoa não é decisão sobre a empresa, nem
+ * o contrário. A categoria em si não identifica ninguém; é a decisão que não
+ * atravessa.
  */
 function mesmaCategoriaPeloNome(userId: string, ids: string[], categoryId: number | null) {
   // excluído fora também aqui: o update do alterado não o toca (a rota responde
   // 404), e o nome dele não pode mudar os outros por trás
   const nomes = db
-    .select({ chave: chaveDoNomeSql })
+    .select({ chave: chaveDoNomeSql, pessoaFisica: txn.pessoaFisica })
     .from(txn)
     .where(and(inArray(txn.id, ids), eq(txn.userId, userId), isNull(txn.excluidoEm)));
   return db
@@ -253,17 +271,20 @@ function mesmaCategoriaPeloNome(userId: string, ids: string[], categoryId: numbe
         eq(txn.userId, userId),
         isNull(txn.excluidoEm),
         ne(txn.tipo, 'pagamento'),
+        eq(txn.papel, 'gasto'),
         notInArray(txn.id, ids),
-        sql`${chaveDoNomeSql} in ${nomes}`,
+        sql`(${chaveDoNomeSql}, ${txn.pessoaFisica}) in ${nomes}`,
       ),
     )
-    .returning({ id: txn.id, descNorm: txn.descNorm });
+    .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica });
 }
 
 /**
  * Total de um estabelecimento em todos os meses, nos cartões do filtro. Em SQL e
  * não somando a lista: ela tem limite, e o total de anos de compras passaria dele.
- * As exclusões são as de `listarTxn`, senão os dois números não conversam.
+ * As exclusões são as de `listarTxn` — inclusive só `papel = 'gasto'`, senão o
+ * total somaria o crédito da conta com o mesmo nome —, ou os dois números não
+ * conversam.
  */
 export async function totalDoNome(userId: string, nome: string, accountIds?: string[]): Promise<number> {
   const cond = [
@@ -271,6 +292,7 @@ export async function totalDoNome(userId: string, nome: string, accountIds?: str
     isNull(txn.excluidoEm),
     eq(txn.suspeitoDuplicado, false),
     ne(txn.tipo, 'pagamento'),
+    eq(txn.papel, 'gasto'),
     sql`${chaveDoNomeSql} = ${chaveDoNome(nome)}`,
   ];
   if (accountIds?.length) cond.push(inArray(txn.accountId, accountIds));
@@ -287,13 +309,14 @@ const nomeNaTelaSql = sql<string>`btrim(coalesce(nullif(${txn.apelido}, ''), nul
 
 /**
  * Os nomes que o datalist do Renomear oferece: um por chave (a grafia é a
- * menor, só para ser estável), em ordem alfabética.
+ * menor, só para ser estável), em ordem alfabética. Só de gasto: é o que o
+ * Renomear alcança.
  */
 export async function nomesNaTela(userId: string): Promise<string[]> {
   const linhas = await db
     .select({ nome: sql<string>`min(${nomeNaTelaSql})` })
     .from(txn)
-    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento')))
+    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')))
     .groupBy(chaveDoNomeSql)
     .orderBy(chaveDoNomeSql)
     .limit(3000);
@@ -309,7 +332,8 @@ export async function nomesNaTela(userId: string): Promise<string[]> {
  */
 export async function renomearEstabelecimento(userId: string, de: string, para: string) {
   const chaveDe = chaveDoNome(de);
-  const base = [eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento')];
+  // só gasto: o crédito e o "não conta" de mesmo nome não são o estabelecimento que se renomeia
+  const base = [eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
 
   const contagens = await db
     .select({
@@ -330,9 +354,12 @@ export async function renomearEstabelecimento(userId: string, de: string, para: 
     .update(txn)
     .set(herdada === null ? { apelido: para } : { apelido: para, categoryId: herdada, categoryFonte: 'manual' })
     .where(and(...base, sql`${chaveDoNomeSql} = ${chaveDe}`))
-    .returning({ id: txn.id, descNorm: txn.descNorm });
+    .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica });
 
-  for (const chave of new Set(linhas.map((l) => l.descNorm))) await aprender(userId, chave, herdada, para);
+  // renomear ainda alcança o nome inteiro na tela, Pix para pessoa física
+  // inclusive (é o dono escolhendo o nome do grupo), mas só as linhas que não
+  // são privadas viram regra
+  for (const chave of chavesQueEnsinam(linhas)) await aprender(userId, chave, herdada, para);
   return { renomeados: linhas.length, categoria: nomeHerdada };
 }
 
@@ -365,7 +392,7 @@ export async function aprender(
 
 export async function regrasAprendidas(userId: string) {
   const linhas = await db
-    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido })
+    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido, papel: learnedLabel.papel })
     .from(learnedLabel)
     .where(eq(learnedLabel.userId, userId));
   return new Map(linhas.map((l) => [l.descNorm, l]));
@@ -481,6 +508,10 @@ export async function importarDoPdf(
         installmentId,
         parcelaN: parcela?.n ?? null,
         fonte: 'pdf',
+        // o PDF não diz quem recebeu: vale a regra sem documento. A extração já
+        // mandou o texto da fatura à IA (/api/import/trecho); o que esta coluna
+        // protege são os prompts do painel daqui em diante
+        pessoaFisica: pareceTransferenciaParaPessoa(p.original.desc),
         dedupeKey: chaveDedupe(accountId, p.data, p.valor, p.descNorm, p.ordinal),
       })
       .onConflictDoUpdate({

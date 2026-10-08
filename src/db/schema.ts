@@ -44,6 +44,7 @@ export const connectionStatus = pgEnum('connection_status', [
 export const statementStatus = pgEnum('statement_status', ['aberta', 'fechada', 'paga']);
 export const txnKind = pgEnum('txn_kind', ['fixo', 'parcela', 'encargo', 'escolha', 'pagamento']);
 export const txnSource = pgEnum('txn_source', ['pluggy', 'pdf', 'manual']);
+export type Papel = 'gasto' | 'entrada' | 'renda' | 'fora';
 
 export const appUser = pgTable('app_user', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -183,6 +184,10 @@ export const txn = pgTable(
     categoryId: bigint('category_id', { mode: 'number' }).references(() => category.id),
     categoryFonte: text('category_fonte').notNull().default('ia'),
     tipo: txnKind('tipo').notNull().default('escolha'),
+    papel: text('papel').$type<Papel>().notNull().default('gasto'),
+    papelFonte: text('papel_fonte').$type<'auto' | 'manual'>().notNull().default('auto'),
+    // o paymentData não é gravado: depois do sync, só isto diz que a descrição não pode ir à IA (0014)
+    pessoaFisica: boolean('pessoa_fisica').notNull().default(false),
     installmentId: uuid('installment_id').references(() => installmentPlan.id, {
       onDelete: 'set null',
     }),
@@ -214,6 +219,7 @@ export const learnedLabel = pgTable(
     descNorm: text('desc_norm').notNull(),
     categoryId: bigint('category_id', { mode: 'number' }).references(() => category.id),
     apelido: text('apelido'),
+    papel: text('papel').$type<Exclude<Papel, 'gasto'>>(),
     hits: integer('hits').notNull().default(1),
     atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -1,5 +1,5 @@
 import type { Txn } from '@/db/schema';
-import { nomeExibido, normDesc, type Contexto } from './calculos/base';
+import { nomeExibido, normDesc, parecido, type Contexto, type Lanc } from './calculos/base';
 import { composicaoMes, recorrentes, recorrentesFixas } from './calculos/composicao';
 import { cartoesInfo, encargosDoMes, lancsDoMes, mesAtual, porCategoria, porMes } from './calculos/meses';
 import { parcelasInfo, projecao } from './calculos/parcelas';
@@ -47,12 +47,79 @@ export function lotarParaIA(
 }
 
 /**
+ * Começo do que a IA lê no lugar de um lançamento para pessoa física — Pix,
+ * TED, DOC ou transferência, na conta ou no cartão. Decisão do dono: nem a
+ * descrição do banco, nem o nome limpo, nem o apelido que ele mesmo deu saem —
+ * o apelido de uma pessoa costuma ser o nome dela. Valor, data e categoria
+ * continuam. Cada pessoa ganha uma letra (`rotuloDaPessoa`).
+ */
+export const PESSOA_FISICA_PARA_IA = 'Pix pessoa';
+
+/**
+ * A, B, …, Z, AA, AB… Letra e não número: `normDesc`, que agrupa recorrentes e
+ * fixas, tira os dígitos e corta em três palavras — "Pix pessoa 1" e "Pix
+ * pessoa 2" virariam a mesma fixa.
+ */
+export function rotuloDaPessoa(i: number): string {
+  let letras = '';
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) letras = String.fromCharCode(65 + ((n - 1) % 26)) + letras;
+  return `${PESSOA_FISICA_PARA_IA} ${letras}`;
+}
+
+/**
+ * Troca o nome de cada lançamento privado pelo rótulo da pessoa. A pessoa é a
+ * chave com que os cálculos agrupam (`normDesc(nomeExibido(…, false))`, em
+ * composicao.ts), lida no contexto da tela: duas pessoas continuam duas e a
+ * mesma pessoa continua uma, e fixas, composição e projeção que a IA lê são as
+ * da tela. As chaves vão em ordem para a mesma tela dar o mesmo prompt na página
+ * e na rota (o hash do cache é do prompt); uma pessoa nova no recorte pode
+ * trocar as letras das outras, e o cache refaz uma vez.
+ */
+function mascaraDePessoas(ctx: Contexto): <T extends Lanc>(l: T) => T {
+  const chave = (l: Lanc) => normDesc(nomeExibido(ctx, l, false));
+  const chaves = [...new Set(ctx.faturas.flatMap((f) => f.lancamentos.filter((l) => l.privado).map(chave)))].sort();
+  const rotulos = new Map(chaves.map((k, i) => [k, rotuloDaPessoa(i)]));
+  // o apelido fixo faz `nomeExibido` parar nele, sem consultar os aprendidos
+  return (l) => {
+    if (!l.privado) return l;
+    const rotulo = rotulos.get(chave(l)) ?? PESSOA_FISICA_PARA_IA;
+    return { ...l, desc: rotulo, limpa: null, apelido: rotulo };
+  };
+}
+
+/**
+ * Cópia do contexto que pode virar prompt. Todo construtor de prompt que recebe
+ * um `Contexto` passa por aqui (regra 4): o painel mostra o nome ao dono, a IA
+ * não o vê.
+ *
+ * Os apelidos aprendidos cuja chave é a descrição de um lançamento privado (ou
+ * parecida com ela, que é como `nomeExibido` os acha) também saem: um apelido
+ * "Maria" aprendido antes da 6.0 voltaria por outro lançamento parecido. Só os
+ * privados do recorte são vistos aqui; regra nova vinda de um privado fora
+ * dele não existe, porque o privado não ensina (`podeAprender`, descricao.ts).
+ */
+export function contextoParaIA(ctx: Contexto): Contexto {
+  const privados = ctx.faturas.flatMap((f) => f.lancamentos.filter((l) => l.privado).map((l) => l.desc));
+  if (!privados.length) return ctx;
+  const mascarar = mascaraDePessoas(ctx);
+  const apelidos = Object.fromEntries(
+    Object.entries(ctx.apelidos).filter(([k]) => !privados.some((d) => normDesc(k) === normDesc(d) || parecido(k, d))),
+  );
+  return { ...ctx, apelidos, faturas: ctx.faturas.map((f) => ({ ...f, lancamentos: f.lancamentos.map(mascarar) })) };
+}
+
+/**
  * Prompt do plano, o mesmo texto do app antigo (app-antigo.html:1662-1705).
  * Vai: categorias e médias, tetos por mês, preferências e até 10 cobranças
  * fixas com a descrição normalizada — a mesma que a importação já manda —
- * para a IA sugerir o que cancelar. Não vai: cartão, banco, last4, id.
+ * para a IA sugerir o que cancelar. Não vai: cartão, banco, last4, id, nem o
+ * nome de quem recebe Pix (as fixas saem de `contextoParaIA`).
+ *
+ * Recebe o contexto, e não as fixas prontas, para ninguém montar a lista sem a
+ * máscara.
  */
-export function promptPlano(mt: Metas, prefs: Prefs, fixas: Array<{ desc: string; medio: number }>): string {
+export function promptPlano(mt: Metas, prefs: Prefs, ctx: Contexto): string {
+  const fixas = recorrentesFixas(contextoParaIA(ctx));
   const cats = mt.cats.slice(0, 8).map((c) => `- ${c.cat}: hoje ${moeda(c.media)}/mês`).join('\n');
   const alvos = mt.meses.map((m) => `${rotuloMes(m.mes)}: o variável inteiro precisa caber em ${moeda(m.alvo)}`).join('\n');
   const fixasTxt = fixas.slice(0, 10).map((r) => `- ${normDesc(r.desc)}: ${moeda(r.medio)}/mês`).join('\n') || '- nenhuma';
@@ -119,8 +186,14 @@ function nomeParaIA(ctx: Contexto, l: Parameters<typeof nomeExibido>[1]): string
  * lançamentos pelo nome exibido (sem documentos, se for a descrição crua).
  * Não vai: os quatro dígitos do cartão (o legado mandava), id, saldo, limite. A resposta é pedida em JSON para usar
  * `pedirJson`, com o modelo escolhido e o registro de custo.
+ *
+ * Os totais de `d` não dependem de nome; os lançamentos e as contas daqui, sim:
+ * os dois passam pela máscara de pessoa física.
  */
-export function promptResumo(ctx: Contexto, d: DadosResumo): string {
+export function promptResumo(ctxTela: Contexto, dTela: DadosResumo): string {
+  const ctx = contextoParaIA(ctxTela);
+  // os maiores lançamentos com a mesma letra que a pessoa tem no contexto
+  const d = { ...dTela, linhas: dTela.linhas.map(mascaraDePessoas(ctxTela)) };
   const L: string[] = [];
   L.push('Mês da fatura: ' + (d.m ? rotuloMes(d.m) : 'todos os meses carregados'));
   L.push('Cartões: ' + (d.porCartao.map((c) => `${c.nome} ${moeda(c.total)}`).join(', ') || 'nenhum'));
@@ -171,9 +244,11 @@ export type PlanoParaIA = Pick<ResultadoPlano, 'meses' | 'cats'>;
  * Porta de `resumoParaIA` (docs/legado/app-antigo.html:2781-2827) sobre o
  * Contexto já filtrado. Diferenças: o cartão vai sem os quatro dígitos e toda
  * descrição que pode ser crua (Pluggy traz CPF em PIX) passa por `semDocumentos`.
- * A Conversa (7.3) reusa este bloco.
+ * A Conversa (7.3) reusa este bloco. Pix para pessoa física sai mascarado
+ * (`contextoParaIA`).
  */
-export function dadosDiagnostico(ctx: Contexto, filtrado: boolean, plano: PlanoParaIA | null): string {
+export function dadosDiagnostico(ctxTela: Contexto, filtrado: boolean, plano: PlanoParaIA | null): string {
+  const ctx = contextoParaIA(ctxTela);
   const ms = porMes(ctx);
   const m = mesAtual(ctx);
   const prevM = ms.length > 1 ? ms[ms.length - 2]![0] : null;

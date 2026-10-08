@@ -5,7 +5,7 @@ import { account, category, installmentPlan, institution, learnedLabel, statemen
 import { configDoUsuario, montarFaturas, separarObra } from './calculos/adaptador';
 import type { Contexto } from './calculos/base';
 import type { Filtro } from './filtro';
-import { mesDaTxn, nomeDaConta } from './txn-repo';
+import { mesDaTxn, rotuloDaConta } from './txn-repo';
 
 /**
  * Monta o contexto das contas do painel: uma consulta pelos lançamentos do
@@ -21,7 +21,8 @@ export async function carregarContexto(
   userId: string,
   f: Filtro,
 ): Promise<{ ctx: Contexto; obraPorMes: Record<string, number> }> {
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false)];
+  // crédito, renda e o que não conta ficam fora: o painel soma o que saiu (6.0)
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), eq(txn.papel, 'gasto')];
   if (f.cartoes.length) cond.push(inArray(txn.accountId, f.cartoes));
 
   const [linhas, rotulos, config] = await Promise.all([
@@ -30,7 +31,7 @@ export async function carregarContexto(
         statementId: statement.id,
         accountId: txn.accountId,
         mes: mesDaTxn,
-        banco: nomeDaConta,
+        banco: rotuloDaConta,
         last4: account.last4,
         apelidoConta: account.apelido,
         desc: txn.descOrigem,
@@ -46,6 +47,7 @@ export async function carregarContexto(
         // sem statement (left join) o status vem nulo
         aberta: sql<boolean>`coalesce(${statement.status} = 'aberta', false)`,
         fechamento: statement.fechamento,
+        privado: txn.pessoaFisica,
       })
       .from(txn)
       .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))

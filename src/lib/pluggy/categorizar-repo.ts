@@ -54,6 +54,8 @@ export async function categorizarPendentes(
         eq(txn.userId, userId),
         eq(txn.accountId, accountId),
         isNull(txn.excluidoEm),
+        // o sync já não manda esses ids; a trava fica aqui também porque a descrição traz o nome de alguém (regra 4)
+        eq(txn.pessoaFisica, false),
         or(and(isNull(txn.categoryId), eq(txn.categoryFonte, 'ia')), isNull(txn.descLimpa)),
       ),
     );

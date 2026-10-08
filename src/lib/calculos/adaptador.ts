@@ -25,6 +25,7 @@ export type LinhaPainel = {
   data: string; // 'YYYY-MM-DD', de txn.data
   aberta: boolean; // statement.status = 'aberta'; falso sem statement
   fechamento: string | null; // 'YYYY-MM-DD', de statement.fechamento
+  privado: boolean; // txn.pessoa_fisica
 };
 
 /**
@@ -77,6 +78,8 @@ export function montarFaturas(linhas: readonly LinhaPainel[]): {
       parc: l.parcelaN ? `${l.parcelaN}/${l.totalParcelas ?? '?'}` : null,
       tipo: tipoLegado(l, val),
       data: l.data,
+      // só quando verdadeiro: o lançamento comum continua com a forma que a paridade compara
+      ...(l.privado ? { privado: true } : {}),
     };
     f.lancamentos.push(lanc);
   }
