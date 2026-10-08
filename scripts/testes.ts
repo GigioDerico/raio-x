@@ -56,6 +56,7 @@ import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/
 import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuardada } from '../src/lib/conversa';
 import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
+import { blocosDeEntradas, origensDoPapel, papelAceito, regraDoPapel, textoDoPapel, type LinhaEntrada } from '../src/lib/papel';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
 import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
 import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
@@ -882,6 +883,34 @@ async function main() {
   checar('destino: entrada aprendida vira renda', destinoNoSync({ papel: 'entrada' }, 'renda').papel === 'renda' && destinoNoSync({ papel: 'entrada' }, null).papel === 'entrada');
   checar('destino: regra de renda não mexe em gasto nem em fora', destinoNoSync({ papel: 'gasto' }, 'renda').papel === 'gasto' && destinoNoSync({ papel: 'fora' }, 'renda').papel === 'fora');
   checar('destino: entrada, renda e fora não vão à IA', (['entrada', 'renda', 'fora'] as const).every((p) => !destinoNoSync({ papel: p }, null).vaiParaIA && !destinoNoSync({ papel: p }, null).outros));
+  checar('destino: "não conta" aprendido tira gasto e entrada da conta', destinoNoSync({ papel: 'gasto' }, 'fora').papel === 'fora' && destinoNoSync({ papel: 'entrada' }, 'fora').papel === 'fora');
+  checar('destino: regra aprendida não vale para o cartão (papel indefinido)', destinoNoSync({}, 'fora').papel === 'gasto' && destinoNoSync({}, 'renda').papel === 'gasto');
+  checar('destino: "não conta" aprendido não vai à IA', !destinoNoSync({ papel: 'gasto' }, 'fora').vaiParaIA);
+
+  // ---- papel: marcação do dono (6.1) ---------------------------------------
+  process.stdout.write('\n');
+
+  checar('papel aceito: débito só gasto ou fora', papelAceito(80, 'gasto') && papelAceito(80, 'fora') && !papelAceito(80, 'renda') && !papelAceito(80, 'entrada'));
+  checar('papel aceito: crédito só entrada, renda ou fora', papelAceito(-80, 'entrada') && papelAceito(-80, 'renda') && papelAceito(-80, 'fora') && !papelAceito(-80, 'gasto'));
+  checar('papel aceito: valor zero não aceita nada além de fora', papelAceito(0, 'fora') && !papelAceito(0, 'gasto') && !papelAceito(0, 'entrada'));
+  checar('regra do papel: renda e fora ensinam; gasto e entrada desfazem', regraDoPapel('renda') === 'renda' && regraDoPapel('fora') === 'fora' && regraDoPapel('gasto') === null && regraDoPapel('entrada') === null);
+  checar('origens: renda leva entradas; desmarcar renda devolve as renda automáticas',
+    JSON.stringify(origensDoPapel('renda')) === JSON.stringify(['entrada']) && JSON.stringify(origensDoPapel('entrada')) === JSON.stringify(['renda']));
+  checar('origens: "não conta" leva gasto e entrada; voltar a gasto não mexe nas outras',
+    JSON.stringify(origensDoPapel('fora')) === JSON.stringify(['gasto', 'entrada']) && origensDoPapel('gasto').length === 0);
+
+  const ent = (id: string, valor: string, papel: LinhaEntrada['papel']): LinhaEntrada => ({ id, data: '2026-09-05', valor, nome: `ORIGEM ${id}`, conta: 'Banco conta ••1234', papel, pessoaFisica: false });
+  const blocos = blocosDeEntradas([ent('a', '-100.00', 'entrada'), ent('b', '-5000.00', 'renda'), ent('c', '-900.00', 'entrada'), ent('d', '-300.00', 'fora'), ent('e', '-1000.00', 'renda')]);
+  checar('entradas: três blocos e total da renda', blocos.renda.length === 2 && blocos.aMarcar.length === 2 && blocos.fora.length === 1 && blocos.totalRenda === 6000);
+  checar('entradas: ordem por valor, o maior primeiro', blocos.renda[0]!.id === 'b' && blocos.aMarcar[0]!.id === 'c');
+  checar('entradas: vazio', blocosDeEntradas([]).totalRenda === 0 && blocosDeEntradas([]).aMarcar.length === 0);
+
+  checar('aviso: renda com outros da mesma origem', textoDoPapel('renda', 3) === 'Marcado como renda, com mais 3 da mesma origem. Os próximos já chegam marcados.');
+  checar('aviso: renda sozinho', textoDoPapel('renda', 0) === 'Marcado como renda. Os próximos da mesma origem já chegam marcados.');
+  checar('aviso: não conta', textoDoPapel('fora', 1) === 'Fora dos totais, com mais 1 da mesma origem. Os próximos também ficam fora.');
+  checar('aviso: voltar', textoDoPapel('gasto', 0) === 'Volta a contar como gasto.' && textoDoPapel('entrada', 2) === 'Desmarcado, com mais 2 da mesma origem. Os próximos chegam para você marcar.');
+  // Pix para pessoa física é marcado mas não ensina regra: o aviso não promete os próximos
+  checar('aviso: sem aprender não promete os próximos', textoDoPapel('renda', 0, false) === 'Marcado como renda.' && textoDoPapel('fora', 0, false) === 'Fora dos totais.' && textoDoPapel('entrada', 0, false) === 'Desmarcado.');
   checar('pluggy fatura pelo vencimento', JSON.stringify(faturaDaBill(BILL)) === JSON.stringify({ pluggyBillId: 'bill-05', mesRef: '2026-05', vencimento: '2026-05-10', fechamento: null, total: 2345.67 }));
   checar('pluggy fatura com fechamento', faturaDaBill({ ...BILL, billClosingDate: '2026-05-01T00:00:00.000Z' }).fechamento === '2026-05-01');
 

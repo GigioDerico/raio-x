@@ -482,17 +482,26 @@ export function lancamentoDaConta(t: TransacaoPluggy): Recebido | null {
 }
 
 /**
- * O que o sync grava e para onde manda um recebido. A renda aprendida da origem
- * só promove uma entrada: o gasto e o que não conta ficam como o mapeamento
- * decidiu. Só gasto vai à IA, e nunca o de pessoa física, que fica em "Outros"
- * até o dono categorizar.
+ * O que o sync grava e para onde manda um recebido. A regra aprendida da
+ * origem vale só para a conta corrente: renda promove uma entrada, "não conta"
+ * tira um gasto ou uma entrada (boleto de fatura, 6.1). Só gasto vai à IA, e
+ * nunca o de pessoa física, que fica em "Outros" até o dono categorizar.
  */
 export function destinoNoSync(
   r: Pick<Recebido, 'papel' | 'pessoaFisica'>,
   regraPapel: string | null | undefined,
 ): { papel: Papel; vaiParaIA: boolean; outros: boolean } {
   const base = r.papel ?? 'gasto';
-  const papel: Papel = base === 'entrada' && regraPapel === 'renda' ? 'renda' : base;
+  // a regra aprendida só vale para a conta (papel definido): no cartão tudo é gasto.
+  // Renda só promove entrada; "não conta" tira gasto e entrada
+  const papel: Papel =
+    r.papel === undefined
+      ? 'gasto'
+      : base === 'entrada' && regraPapel === 'renda'
+        ? 'renda'
+        : (base === 'gasto' || base === 'entrada') && regraPapel === 'fora'
+          ? 'fora'
+          : base;
   const gasto = papel === 'gasto';
   return { papel, vaiParaIA: gasto && !r.pessoaFisica, outros: gasto && !!r.pessoaFisica };
 }
