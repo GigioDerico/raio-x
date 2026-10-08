@@ -190,6 +190,16 @@ fora dos totais até você decidir" com "Revisar"; a revisão lista cada compra 
 banco com os candidatos do PDF (mesmo valor, até 3 dias), "É este" (fica a do
 banco, a do PDF sai, com desfazer por 10 s) e "São diferentes".
 
+**Entradas** (`/entradas`, 6.1): triagem dos créditos da conta corrente, não
+extrato — sem saldo, ordem por valor. Três `.cartao.ent-bloco`: **Renda** (total
+do mês em `.ent-total`), **A marcar** ("É renda" / "Não conta") e **Não conta**
+("Voltar"). Cada linha `.ent-lin`: data, nome, conta, valor e as ações
+`button.link` com 44px de alvo; no celular a conta e as ações descem para a
+segunda linha. O aviso depois de marcar (`.aviso`, `role="status"`) diz quantos
+da mesma origem mudaram junto. Sem conta conectada, `.cartao.vazio` leva a
+Conexões; mês sem crédito usa o vazio por filtro, avisando que Entradas só olha
+a conta corrente quando o filtro escolheu contas.
+
 ## Marca
 
 A lente (`src/components/Lente.tsx`) em `--accent`, e "Raio-*X*" com o X em
