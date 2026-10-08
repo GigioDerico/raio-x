@@ -116,6 +116,7 @@ const colunasExistente = {
   statementId: txn.statementId,
   installmentId: txn.installmentId,
   duplicadoDe: txn.duplicadoDe,
+  pessoaFisica: txn.pessoaFisica,
 };
 
 async function lerExistentes(userId: string, accountId: string, filtro: SQL | undefined): Promise<Existente[]> {
@@ -138,6 +139,7 @@ async function lerExistentes(userId: string, accountId: string, filtro: SQL | un
     statementId: l.statementId,
     installmentId: l.installmentId,
     duplicadoDe: l.duplicadoDe,
+    pessoaFisica: l.pessoaFisica,
   }));
 }
 

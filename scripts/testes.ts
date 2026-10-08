@@ -845,6 +845,8 @@ async function main() {
   checar('pessoa jurídica pelo CNPJ do recebedor', lancamentoDaConta(pix({ payer: doc('CPF', CPF_TITULAR), receiver: doc('CNPJ', CNPJ_LOJA) }, 'PIX QRS PADARIA'))!.pessoaFisica === false);
   checar('Pix sem documento é pessoa física (conservador)', lancamentoDaConta(pix(null, 'PIX TRANSF JOAO'))!.pessoaFisica === true && lancamentoDaConta(pix(null, 'TED 001 FULANO'))!.pessoaFisica === true);
   checar('boleto sem documento não é pessoa física', lancamentoDaConta(pix(null, 'PAGTO BOLETO ESCOLA'))!.pessoaFisica === false);
+  checar('sem documento, categoria de transferência é pessoa física', ehPessoaFisica(txc({ category: 'Transfer - PIX' }), 100, 'MARIA SILVA') && ehPessoaFisica(txc({ category: 'Transfers' }), 100, 'FULANO DE TAL'));
+  checar('categoria de transferência não vence o CNPJ nem pega a mesma pessoa', !ehPessoaFisica(txc({ category: 'Transfer - PIX', paymentData: { receiver: doc('CNPJ', CNPJ_LOJA) } }), 100, 'PADARIA') && !ehPessoaFisica(txc({ category: 'Same person transfer - PIX' }), 100, 'CONTA X') && !ehPessoaFisica(txc({ category: 'Groceries' }), 100, 'MERCADO'));
   checar('crédito olha o pagador', ehPessoaFisica(txc({ type: 'CREDIT', paymentData: { payer: doc('CPF', CPF_OUTRA_PESSOA), receiver: doc('CPF', CPF_TITULAR) } }), -100, 'PIX RECEBIDO') === true);
 
   const cPix = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA', ...doc('CNPJ', CNPJ_LOJA) } }))!;
@@ -890,7 +892,7 @@ async function main() {
   const ex = (o: Partial<Existente> = {}): Existente => ({
     id: 'e1', data: '2026-04-10', valor: 120, descNorm: desc, fonte: 'pdf', pluggyTxnId: null,
     dedupeKey: chaveDedupe(CONTA, '2026-04-10', 120, desc, 0), excluido: false,
-    tipo: 'escolha', pendente: false, parcelaN: null, statementId: null, installmentId: null, duplicadoDe: null, ...o,
+    tipo: 'escolha', pendente: false, parcelaN: null, statementId: null, installmentId: null, duplicadoDe: null, pessoaFisica: false, ...o,
   });
   const rec = (o: Partial<Recebido> = {}): Recebido => ({
     pluggyTxnId: 'pt-1', data: '2026-04-10', dataLancamento: '2026-04-10', valor: 120, descOrigem: 'IFOOD *RESTAURANTE', descNorm: desc,
@@ -999,11 +1001,16 @@ async function main() {
   const cProm = camposDaAcao(acaoDe('promover', rec({ pendente: true, valor: 130 })), ex());
   checar('camposDaAcao promover leva id e fonte', cProm.pluggyTxnId === 'pt-1' && cProm.fonte === 'pluggy' && !('pluggyTxnId' in cPostada) && !('fonte' in cPostada));
   checar('camposDaAcao linha postada não volta a pendente', cProm.pendente === false && !('valor' in cProm));
-  const cTudo = camposDaAcao(acaoDe('promover', parc(5, { pendente: true })), ex({ pendente: true }));
-  const permitidas = ['valor', 'tipo', 'parcelaN', 'pendente', 'pluggyTxnId', 'fonte'];
+  // 6.0, I2: o PDF não sabe quem recebeu o Pix; o Pluggy que sabe só marca, nunca desmarca
+  const cPfSobe = camposDaAcao(acaoDe('promover', rec({ pessoaFisica: true })), ex());
+  const cPfFica = camposDaAcao(acaoDe('atualizar', rec({ pessoaFisica: false })), ex({ pessoaFisica: true }));
+  const cPfJa = camposDaAcao(acaoDe('atualizar', rec({ pessoaFisica: true })), ex({ pessoaFisica: true }));
+  checar('camposDaAcao pessoa física só sobe', cPfSobe.pessoaFisica === true && !('pessoaFisica' in cPfFica) && !('pessoaFisica' in cPfJa) && !('pessoaFisica' in cPostada));
+  const cTudo = camposDaAcao(acaoDe('promover', parc(5, { pendente: true, pessoaFisica: true })), ex({ pendente: true }));
+  const permitidas = ['valor', 'tipo', 'parcelaN', 'pendente', 'pluggyTxnId', 'fonte', 'pessoaFisica'];
   checar('camposDaAcao só mexe nos campos permitidos',
     permitidas.every((k) => k in cTudo) &&
-    [cPostada, cPendente, cPag, cParc, cEncargo, cFixo, cProm, cTudo].every((c) => Object.keys(c).every((k) => permitidas.includes(k))));
+    [cPostada, cPendente, cPag, cParc, cEncargo, cFixo, cProm, cTudo, cPfSobe].every((c) => Object.keys(c).every((k) => permitidas.includes(k))));
 
   // ---- pluggy: cliente -----------------------------------------------------
   process.stdout.write('\n');

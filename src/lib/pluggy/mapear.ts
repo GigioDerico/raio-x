@@ -341,6 +341,9 @@ const MESMA_PESSOA = /\bTRANSF\w*\s+ENTRE\s+CONTAS\b|\bMESMA\s+TITULARIDADE\b/;
 const INVESTIMENTO = /\b(APLICA[CÇ][AÃ]O|APLIC|RESGATE)\b/i;
 const CATEGORIA_INVESTIMENTO = /^(investments?|fixed income|variable income|mutual funds|pension)\b/i;
 const TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSF\w*)\b/i;
+// "Transfer - PIX", "Transfers"... A transferência própria começa por "Same
+// person" e não casa aqui
+const CATEGORIA_TRANSFERENCIA = /^transfer/i;
 
 /**
  * Pagamento de fatura, transferência entre contas do mesmo titular, aplicação e
@@ -366,7 +369,8 @@ export function papelDaConta(t: TransacaoPluggy, valor: number, descOrigem: stri
 /**
  * A outra ponta é pessoa física? No débito é quem recebe; no crédito, quem paga.
  * Sem documento, Pix e TED contam como pessoa física: a descrição deles traz o
- * nome de alguém, e o nome não pode ir à IA (regra 4).
+ * nome de alguém, e o nome não pode ir à IA (regra 4). A categoria de
+ * transferência do Pluggy também: há banco que escreve só o nome, sem "PIX".
  */
 export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: string): boolean {
   const d = dadosPagamento(t);
@@ -375,7 +379,7 @@ export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: st
   const n = digitos(outro).length;
   if (tipo === 'CPF' || n === 11) return true;
   if (tipo === 'CNPJ' || n === 14) return false;
-  return TRANSFERENCIA.test(descOrigem);
+  return TRANSFERENCIA.test(descOrigem) || (!!t.category && CATEGORIA_TRANSFERENCIA.test(t.category));
 }
 
 /**
