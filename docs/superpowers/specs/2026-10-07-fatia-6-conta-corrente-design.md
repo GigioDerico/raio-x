@@ -14,6 +14,16 @@ de existir, porque passa a ser medido.
 o mostra nesta fatia. "Quanto posso gastar até o fim do mês" também fica para
 depois.
 
+> **Revisão de 2026-10-08 (conferência da 6.1) — vale sobre o resto do texto.**
+> A renda é **digitada pelo dono**, não garimpada dos lançamentos. Por isso:
+> a tela Entradas, "É renda" e o aprendizado de renda saem (a 6.1 já os removeu);
+> `renda_declarada` **fica** em Ajustes e a 6.3 não a apaga — só
+> `gasto_fora_cartao` sai (a conta corrente já traz esses gastos); a 6.2 usa a
+> renda digitada (por mês ou fixa) no painel, no plano e no Previsto, e
+> `sem_renda` manda para Ajustes. "Não conta" continua, só em débitos.
+> Pix, TED e DOC não ensinam regra de papel: a descrição se repete para destinos
+> diferentes e a regra arrastaria todos.
+
 ## Decisões do brainstorming
 
 | Pergunta | Decidido |
