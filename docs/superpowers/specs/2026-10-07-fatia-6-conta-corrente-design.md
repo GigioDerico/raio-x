@@ -78,6 +78,18 @@ categoria aprendida quando existe. Pix para CNPJ, boleto e débito seguem o flux
 normal. Crédito e o que não conta também não vão à IA, porque não precisam de
 categoria.
 
+Fora da categorização, o mesmo Pix é gasto e entra no painel, e o painel vira
+prompt (resumo, diagnóstico, conversa, plano). Por isso o mapeamento é gravado:
+`txn.pessoa_fisica` (migração `0014_pessoa_fisica.sql`) é a única coisa que,
+depois do sync, diz que a descrição traz o nome de alguém. A coluna chega ao
+`Contexto` dos cálculos como `privado`, e todo construtor de prompt que recebe
+contexto passa por `contextoParaIA` (`src/lib/ia.ts`): o lançamento privado vai
+como `Pix para pessoa física`, com valor, data e categoria, sem a descrição e sem
+apelido — nem o que o dono deu, porque o apelido de uma pessoa costuma ser o nome
+dela. Os apelidos aprendidos com a chave daquela descrição também saem. A tela
+continua mostrando o nome ao dono. `categorizarPendentes` ainda filtra
+`pessoa_fisica = false`, como segunda trava.
+
 ## 2. Telas
 
 ### Lançamentos
@@ -167,7 +179,7 @@ mudam, só o que entra nelas. O plano criado guarda a `renda_base` usada.
 | 6.0 | Migração 0013, sync da conta, papel automático, filtro de pessoa física na IA, painel filtrando `papel = 'gasto'` | Os gastos da conta já aparecem no painel e em Lançamentos |
 | 6.1 | Alternador em Lançamentos, ação "não conta", tela Entradas, aprendizado de renda | Dá para corrigir o automático e marcar a renda |
 | 6.2 | `rendaDoUsuario`, painel, plano, Previsto e Ajustes sem os dois campos | A renda digitada some |
-| 6.3 | Migração 0014 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
+| 6.3 | Migração 0015 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
 
 ## Testes (`scripts/testes.ts`)
 

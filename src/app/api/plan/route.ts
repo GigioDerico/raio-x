@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server';
-import { recorrentesFixas } from '@/lib/calculos/composicao';
 import { ajustarPlano, metasDoPlano, type ResultadoPlano } from '@/lib/calculos/plano';
 import { lerFiltro } from '@/lib/filtro';
 import { promptPlano } from '@/lib/ia';
@@ -44,7 +43,8 @@ export async function POST(req: NextRequest) {
     if (!ativo) throw new ErroDeUso('sem_plano', 'Monte o plano primeiro', 404);
     const mt = metasDoPlano(ctx, ativo.prefs);
     if (!mt) throw semRenda();
-    const prompt = promptPlano(mt, ativo.prefs, recorrentesFixas(ctx));
+    // as fixas saem do contexto dentro de promptPlano, já sem o nome de quem recebe Pix
+    const prompt = promptPlano(mt, ativo.prefs, ctx);
 
     const cfg = await configuracoes(userId);
     let resposta: Awaited<ReturnType<typeof pedirJson<unknown>>>;

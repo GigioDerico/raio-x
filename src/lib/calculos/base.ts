@@ -29,6 +29,11 @@ export type Lanc = {
   tipo: TipoLegado;
   /** 'YYYY-MM-DD', como gravada; só o ciclo da fatura aberta usa (o legado não tinha) */
   data?: string;
+  /**
+   * Pix ou TED para pessoa física (`txn.pessoa_fisica`): a descrição e o apelido
+   * trazem o nome de alguém. A tela mostra; a IA nunca vê (`contextoParaIA`).
+   */
+  privado?: boolean;
 };
 
 export type Fatura = {

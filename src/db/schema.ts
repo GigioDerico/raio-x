@@ -186,6 +186,8 @@ export const txn = pgTable(
     tipo: txnKind('tipo').notNull().default('escolha'),
     papel: text('papel').$type<Papel>().notNull().default('gasto'),
     papelFonte: text('papel_fonte').$type<'auto' | 'manual'>().notNull().default('auto'),
+    // o paymentData não é gravado: depois do sync, só isto diz que a descrição não pode ir à IA (0014)
+    pessoaFisica: boolean('pessoa_fisica').notNull().default(false),
     installmentId: uuid('installment_id').references(() => installmentPlan.id, {
       onDelete: 'set null',
     }),

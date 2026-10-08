@@ -47,7 +47,7 @@ import type { Projecao } from '../src/lib/calculos/parcelas';
 import { montarPrevisto, previsto } from '../src/lib/calculos/previsto';
 import { limparFixos, respostaTemCategorias, validarPrefs } from '../src/lib/plano-prefs';
 import { fraseSemPlano, subtituloPlano, notasDoPlano, feitoPara, planoTerminou } from '../src/lib/plano-texto';
-import { dadosDiagnostico, lerCategorias, mensagensConversa, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
+import { contextoParaIA, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
 import { chaveRecorte, dadosResumo, lerResumo, lerTexto } from '../src/lib/calculos/resumo';
 import { markdownLeve } from '../src/lib/markdown-leve';
 import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/lib/ndjson';
@@ -304,7 +304,7 @@ async function main() {
   const linha = (x: Partial<LinhaPainel>): LinhaPainel => ({
     statementId: 's1', accountId: 'c1', mes: '2026-07', banco: 'Sicredi', last4: '2222', apelidoConta: null,
     desc: 'LOJA', limpa: null, apelido: null, valor: '10.00', categoria: 'Outros', tipo: 'escolha', parcelaN: null,
-    totalParcelas: null, vencimento: null, data: '2026-07-01', aberta: false, fechamento: null, ...x,
+    totalParcelas: null, vencimento: null, data: '2026-07-01', aberta: false, fechamento: null, privado: false, ...x,
   });
   const mf = montarFaturas([
     linha({ desc: 'RENNER', valor: '149.90', tipo: 'parcela', parcelaN: 3, totalParcelas: 3, categoria: 'Compras & Vestuário' }),
@@ -749,7 +749,7 @@ async function main() {
 
   const ctxPlano = contexto(null, faturasDeTeste(), { renda: 2000, metaPoupanca: 20, foraCartao: 0 });
   const mtPlano = metasDoPlano(ctxPlano, PREFS_PADRAO)!;
-  const prompt = promptPlano(mtPlano, PREFS_PADRAO, recorrentesFixas(ctxPlano));
+  const prompt = promptPlano(mtPlano, PREFS_PADRAO, ctxPlano);
   checar('promptPlano traz categorias, tetos e preferências', mtPlano.cats.slice(0, 8).every((c) => prompt.includes(c.cat)) && mtPlano.meses.every((m) => prompt.includes(rotuloMes(m.mes))) && prompt.includes('Em três passos (recomendado)') && prompt.includes('NETFLIX COM'));
   checar('promptPlano não vaza cartão, banco nem id', ['1111', '2222', 'Itaú', 'Nubank', 'Azul', 'a-2026', 'b-2026'].every((s) => !prompt.includes(s)));
 
@@ -1221,6 +1221,40 @@ async function main() {
   checar('conversa histórico não começa por fala da IA', mC2[2]!.content === 'fala 0' && mC2.every((m, i) => i === 0 || m.role !== mC2[i - 1]!.role));
   checar('conversa sem histórico', mensagensConversa(dC, null, [], 'oi').length === 3);
   checar('conversa não vaza cartão', mC.every((m) => ['1111', '2222', '••'].every((s) => !m.content.includes(s))));
+
+  // ---- pessoa física nos prompts agregados (6.0, C1) -----------------------
+  process.stdout.write('\n');
+
+  // Pix para a mesma pessoa três meses seguidos, com o apelido no lançamento e
+  // aprendido: vira fixa, entra nos maiores e no plano. Nada do nome pode sair.
+  const ctxPF = (() => {
+    const c = contexto(null, faturasDeTeste(), { renda: 20000, metaPoupanca: 20, foraCartao: 0 });
+    c.apelidos = { ...c.apelidos, 'PIX TRANSF MARIA SILVA': 'Maria' };
+    for (const f of c.faturas.filter((x) => x.banco === 'Itaú' && x.mesRef >= '2026-04')) {
+      f.lancamentos.push(
+        { desc: 'PIX TRANSF MARIA SILVA', apelido: f.mesRef === '2026-05' ? 'Maria' : null, val: 900, cat: 'Serviços & Profissional', parc: null, tipo: 'compra', privado: true },
+        { desc: 'PADARIA PAO QUENTE', apelido: null, val: 850, cat: 'Mercado & Padaria', parc: null, tipo: 'compra' },
+      );
+    }
+    return c;
+  })();
+  const semMaria = (s: string) => !s.includes('MARIA') && !s.includes('Maria');
+  const mascarado = contextoParaIA(ctxPF);
+  checar('contextoParaIA troca descrição e apelido do privado', semMaria(JSON.stringify(mascarado)) && mascarado.faturas.some((f) => f.lancamentos.some((l) => l.privado && l.desc === PESSOA_FISICA_PARA_IA && l.apelido === PESSOA_FISICA_PARA_IA && l.val === 900 && l.cat === 'Serviços & Profissional')));
+  checar('contextoParaIA não mexe no contexto da tela', JSON.stringify(ctxPF).includes('PIX TRANSF MARIA SILVA') && ctxPF.apelidos['PIX TRANSF MARIA SILVA'] === 'Maria');
+  checar('contextoParaIA sem privado devolve o mesmo contexto', contextoParaIA(ctxG) === ctxG);
+  const pPF = promptResumo(ctxPF, dadosResumo(ctxPF));
+  checar('resumo não leva o nome do Pix para pessoa física', semMaria(pPF) && pPF.includes(`${PESSOA_FISICA_PARA_IA} ${moeda(900)}`));
+  checar('resumo mantém o nome do que não é privado', pPF.includes(`PADARIA PAO QUENTE ${moeda(850)}`));
+  const dPF = dadosDiagnostico(ctxPF, false, null);
+  checar('diagnóstico não leva o nome do Pix para pessoa física', semMaria(dPF) && dPF.includes(`${PESSOA_FISICA_PARA_IA} ${moeda(900)}`));
+  checar('diagnóstico mantém o nome do que não é privado', dPF.includes('PADARIA PAO QUENTE'));
+  checar('conversa não leva o nome do Pix para pessoa física', mensagensConversa(dPF, null, [], 'quem é a maior?').every((m) => semMaria(m.content)));
+  // a fixa existe no contexto da tela com o nome: sem a máscara, o plano o levaria
+  checar('fixa do Pix aparece com o nome na tela', recorrentesFixas(ctxPF).some((r) => r.desc === 'Maria' || r.desc.includes('MARIA')));
+  const mtPF = metasDoPlano(ctxPF, PREFS_PADRAO)!;
+  const plPF = promptPlano(mtPF, PREFS_PADRAO, ctxPF);
+  checar('plano não leva o nome do Pix para pessoa física nas fixas', semMaria(plPF) && plPF.includes('PIX PARA PESSOA'));
 
   checar('pergunta aparada', validarPergunta('  oi  ') === 'oi' && validarPergunta('a'.repeat(LIMITE_PERGUNTA)) !== null);
   checar('pergunta inválida', [undefined, null, 5, '', '   ', 'a'.repeat(LIMITE_PERGUNTA + 1)].every((v) => validarPergunta(v) === null));

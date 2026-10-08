@@ -47,6 +47,7 @@ export async function carregarContexto(
         // sem statement (left join) o status vem nulo
         aberta: sql<boolean>`coalesce(${statement.status} = 'aberta', false)`,
         fechamento: statement.fechamento,
+        privado: txn.pessoaFisica,
       })
       .from(txn)
       .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))

@@ -272,6 +272,7 @@ export async function sincronizarConta(
               categoryFonte: regra ? 'regra' : 'ia',
               tipo: r.tipo,
               papel: destino.papel,
+              pessoaFisica: !!r.pessoaFisica,
               installmentId,
               parcelaN: r.parcela?.n ?? null,
               fonte: 'pluggy',
