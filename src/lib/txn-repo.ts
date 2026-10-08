@@ -680,7 +680,8 @@ export async function importarDoPdf(
         descNorm: p.descNorm,
         apelido: regra?.apelido ?? null,
         categoryId,
-        categoryFonte: regra ? 'regra' : 'ia',
+        // como no sync: regra só de apelido não é categoria aprendida
+        categoryFonte: regra?.categoryId ? 'regra' : 'ia',
         tipo,
         installmentId,
         parcelaN: parcela?.n ?? null,
