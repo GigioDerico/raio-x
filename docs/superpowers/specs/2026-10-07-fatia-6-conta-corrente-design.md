@@ -68,11 +68,15 @@ mesma janela, mesmo dedupe e mesma exclusão lógica.
 
 ### IA
 
-O filtro fica em `src/lib/ia.ts` (regra 4). Pix e TED para pessoa física não
-saem da infraestrutura. Contam como pessoa física: CPF no `paymentData`, ou
-descrição de Pix ou TED sem documento nenhum (o caso conservador). Esses
-lançamentos chegam com a categoria "Outros" e usam a categoria aprendida quando
-existe. Pix para CNPJ, boleto e débito seguem o fluxo normal.
+Pix e TED para pessoa física não saem da infraestrutura (regra 4). Contam como
+pessoa física: CPF no `paymentData`, ou descrição de Pix, TED ou transferência
+sem documento nenhum (o caso conservador). A decisão é do mapeamento
+(`paraIA: false`), porque o `paymentData` não é gravado e só existe na hora do
+sync. O sync tira esses ids da lista que vai a `categorizarPendentes`, então eles
+nunca chegam a `src/lib/ia.ts`. Chegam com a categoria "Outros" e usam a
+categoria aprendida quando existe. Pix para CNPJ, boleto e débito seguem o fluxo
+normal. Crédito e o que não conta também não vão à IA, porque não precisam de
+categoria.
 
 ## 2. Telas
 
