@@ -56,7 +56,7 @@ import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/
 import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuardada } from '../src/lib/conversa';
 import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
-import { blocosDeEntradas, chaveDaRegraDePapel, chavePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, textoDoPapel, type LinhaEntrada } from '../src/lib/papel';
+import { chaveDaRegraDePapel, chavePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, textoDoPapel } from '../src/lib/papel';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
 import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
 import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
@@ -912,11 +912,6 @@ async function main() {
   checar('origens: "não conta" leva gasto e entrada; voltar a gasto devolve as fora automáticas',
     JSON.stringify(origensDoPapel('fora')) === JSON.stringify(['gasto', 'entrada']) && JSON.stringify(origensDoPapel('gasto')) === JSON.stringify(['fora']));
 
-  const ent = (id: string, valor: string, papel: LinhaEntrada['papel']): LinhaEntrada => ({ id, data: '2026-09-05', valor, nome: `ORIGEM ${id}`, conta: 'Banco conta ••1234', papel, pessoaFisica: false });
-  const blocos = blocosDeEntradas([ent('a', '-100.00', 'entrada'), ent('b', '-5000.00', 'renda'), ent('c', '-900.00', 'entrada'), ent('d', '-300.00', 'fora'), ent('e', '-1000.00', 'renda')]);
-  checar('entradas: três blocos e total da renda', blocos.renda.length === 2 && blocos.aMarcar.length === 2 && blocos.fora.length === 1 && blocos.totalRenda === 6000);
-  checar('entradas: ordem por valor, o maior primeiro', blocos.renda[0]!.id === 'b' && blocos.aMarcar[0]!.id === 'c');
-  checar('entradas: vazio', blocosDeEntradas([]).totalRenda === 0 && blocosDeEntradas([]).aMarcar.length === 0);
 
   checar('aviso: renda com outros da mesma origem', textoDoPapel('renda', 3) === 'Marcado como renda, com mais 3 da mesma origem. Os próximos já chegam marcados.');
   checar('aviso: renda sozinho', textoDoPapel('renda', 0) === 'Marcado como renda. Os próximos da mesma origem já chegam marcados.');

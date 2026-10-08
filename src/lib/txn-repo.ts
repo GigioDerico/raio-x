@@ -18,7 +18,7 @@ import { mesPorExtenso } from './filtro';
 import { categoriaHerdada, chaveDoNome } from './nome-na-tela';
 import { planoDaParcela, tipoDoTxn } from './importacao';
 import type { LancLimpo } from './extracao';
-import { chaveDaRegraDePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, type LinhaEntrada } from './papel';
+import { chaveDaRegraDePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel } from './papel';
 import type { Papel } from './pluggy/mapear';
 
 // espelho de `chaveDoNome(nomeNaTela(l))` (src/lib/nome-na-tela.ts): o nome que
@@ -64,9 +64,9 @@ export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.k
 
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
-  // crédito, renda e o que não conta não são gasto: Entradas e a aba "Não conta" os mostram (6.1)
+  // o que não conta não é gasto: a aba "Não conta" o mostra (6.1)
   const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, f.papel ?? 'gasto')];
-  // os créditos que não contam ficam em Entradas, não aqui
+  // crédito não é lançamento de gasto: a aba mostra só débitos
   if (f.papel === 'fora') cond.push(gt(txn.valor, '0'));
 
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
@@ -130,49 +130,6 @@ export async function contarNaoConta(userId: string, f: { mes?: string | null; a
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
     .where(and(...cond));
   return linha?.n ?? 0;
-}
-
-/** Os créditos da conta corrente no recorte, para a tela Entradas. */
-export async function listarEntradas(userId: string, f: { mes?: string | null; accountIds?: string[] }): Promise<LinhaEntrada[]> {
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), lt(txn.valor, '0'), inArray(txn.papel, ['entrada', 'renda', 'fora'])];
-  if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
-  if (f.accountIds?.length) cond.push(inArray(txn.accountId, f.accountIds));
-  const linhas = await db
-    .select({
-      id: txn.id,
-      data: txn.data,
-      valor: txn.valor,
-      nome: nomeNaTelaSql,
-      contaApelido: account.apelido,
-      contaLast4: account.last4,
-      contaBanco: rotuloDaConta,
-      papel: txn.papel,
-      pessoaFisica: txn.pessoaFisica,
-    })
-    .from(txn)
-    .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId), eq(account.kind, 'conta_corrente')))
-    .innerJoin(institution, eq(institution.id, account.institutionId))
-    .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
-    .where(and(...cond))
-    .orderBy(asc(txn.data), asc(txn.id));
-  return linhas.map((l) => ({
-    id: l.id,
-    data: l.data,
-    valor: l.valor,
-    nome: l.nome,
-    conta: l.contaApelido || `${l.contaBanco}${l.contaLast4 ? ` ••${l.contaLast4}` : ''}`,
-    papel: l.papel,
-    pessoaFisica: l.pessoaFisica,
-  }));
-}
-
-export async function temContaCorrente(userId: string): Promise<boolean> {
-  const [c] = await db
-    .select({ id: account.id })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente'), eq(account.ativo, true)))
-    .limit(1);
-  return Boolean(c);
 }
 
 export type OpcoesFiltro = {

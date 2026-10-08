@@ -7,10 +7,10 @@ import type { Papel } from '@/lib/pluggy/mapear';
 export const runtime = 'nodejs';
 
 const MAX = 500;
-const PAPEIS: readonly Papel[] = ['gasto', 'entrada', 'renda', 'fora'];
+const PAPEIS: readonly Papel[] = ['gasto', 'fora'];
 
 /**
- * A marcação do dono na linha ou no lote, em Lançamentos e em Entradas. O que
+ * A marcação do dono na linha ou no lote, em Lançamentos. O que
  * não é conta corrente, não é do usuário ou não cabe no sinal é pulado no
  * `where`; se nada coube, a mesma resposta para todos os casos — não diz se o
  * id existe.

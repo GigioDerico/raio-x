@@ -15,7 +15,6 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
     titulo: 'O que aconteceu',
     itens: [
       { href: '/lancamentos', rotulo: 'Lançamentos', icone: IconeLancamentos },
-      { href: '/entradas', rotulo: 'Entradas' },
       { href: '/parcelas', rotulo: 'Parcelas', icone: IconeParcelas },
     ],
   },

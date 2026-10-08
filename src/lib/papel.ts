@@ -63,30 +63,6 @@ export function origensDoPapel(papel: Papel): Papel[] {
   return ['fora'];
 }
 
-export type LinhaEntrada = {
-  id: string;
-  data: string;
-  valor: string;
-  nome: string;
-  conta: string;
-  papel: Papel;
-  pessoaFisica: boolean;
-};
-
-/** Os três blocos da tela Entradas, cada um do maior valor para o menor. */
-export function blocosDeEntradas(linhas: readonly LinhaEntrada[]) {
-  const porValor = (a: LinhaEntrada, b: LinhaEntrada) => Math.abs(Number(b.valor)) - Math.abs(Number(a.valor));
-  const de = (p: Papel) => linhas.filter((l) => l.papel === p).sort(porValor);
-  const renda = de('renda');
-  return {
-    renda,
-    aMarcar: de('entrada'),
-    fora: de('fora'),
-    // crédito é gravado negativo; a renda aparece positiva
-    totalRenda: Math.round(-renda.reduce((s, l) => s + Number(l.valor), 0) * 100) / 100,
-  };
-}
-
 /**
  * O aviso depois de marcar: diz o que mudou junto e o que acontece com os
  * próximos. Sem aprender (Pix para pessoa física), não promete os próximos.

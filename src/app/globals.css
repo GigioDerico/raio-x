@@ -1113,33 +1113,3 @@ a.voltar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
   white-space: nowrap;
   border: 0;
 }
-
-/* 6.1 — Entradas: triagem dos créditos da conta, por valor, sem saldo */
-.tela-entradas .ent-bloco { margin-top: 1rem; }
-/* o h2 global tem 2rem em cima, feito para seção solta, não para dentro do cartão */
-.tela-entradas .ent-bloco h2.eyebrow { margin: 0; }
-.tela-entradas .ent-total { margin: 0.2rem 0 0.6rem; font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tela-entradas .ent-lista { list-style: none; margin: 0; padding: 0; }
-.tela-entradas .ent-lin {
-  display: grid;
-  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
-  grid-template-areas: 'data nome val' 'conta conta acoes';
-  gap: 0.2rem 0.6rem;
-  padding: 0.55rem 0;
-  border-top: 1px solid var(--hair);
-}
-.tela-entradas .ent-data { grid-area: data; color: var(--muted); font-size: 0.85rem; }
-.tela-entradas .ent-nome { grid-area: nome; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.tela-entradas .ent-conta { grid-area: conta; align-self: center; color: var(--muted); font-size: 0.78rem; }
-.tela-entradas .ent-val { grid-area: val; text-align: right; font-variant-numeric: tabular-nums; }
-.tela-entradas .ent-acoes { grid-area: acoes; display: flex; gap: 0.25rem; justify-content: flex-end; }
-.tela-entradas .ent-acoes button.link { margin: 0; min-height: 44px; }
-.tela-entradas .aviso button.link { min-height: 44px; }
-@media (min-width: 48rem) {
-  .tela-entradas .ent-lin {
-    grid-template-columns: 3.2rem minmax(0, 1fr) 12rem 7rem auto;
-    grid-template-areas: 'data nome conta val acoes';
-    align-items: center;
-  }
-  .tela-entradas .ent-conta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-}
