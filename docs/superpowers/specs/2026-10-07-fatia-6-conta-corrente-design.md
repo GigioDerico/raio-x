@@ -123,6 +123,12 @@ aqui — a coluna protege os prompts do painel depois da importação.
   débitos com `papel = 'fora'`, e cada linha tem o botão "contar como gasto".
 - A ação **"Não conta"** entra na linha e na multi-seleção, só para lançamentos
   de conta. Os do cartão continuam com o "excluir" de hoje.
+- **"Não conta" aprende pela origem**, como a renda: grava `learned_label.papel =
+  'fora'` pela `desc_norm` e os próximos lançamentos da mesma origem chegam como
+  `fora`. É o caminho para boleto e débito automático de fatura de cartão
+  ("Pagamento de boleto <emissor>", "Débito automático Fatura <cartão>"), que o
+  texto sozinho não separa de um boleto qualquer (conferência da 6.0). Linha
+  privada (`pessoa_fisica`) não ensina regra (ver `podeAprender`).
 
 ### Entradas (`/entradas`, nova)
 
@@ -200,7 +206,7 @@ mudam, só o que entra nelas. O plano criado guarda a `renda_base` usada.
 | 6.0 | Migração 0013, sync da conta, papel automático, filtro de pessoa física na IA, painel filtrando `papel = 'gasto'` | Os gastos da conta já aparecem no painel e em Lançamentos |
 | 6.1 | Alternador em Lançamentos, ação "não conta", tela Entradas, aprendizado de renda | Dá para corrigir o automático e marcar a renda |
 | 6.2 | `rendaDoUsuario`, painel, plano, Previsto e Ajustes sem os dois campos | A renda digitada some |
-| 6.3 | Migração 0016 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
+| 6.3 | Migração 0017 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
 
 ## Testes (`scripts/testes.ts`)
 

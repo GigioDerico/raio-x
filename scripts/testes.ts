@@ -839,6 +839,10 @@ async function main() {
   checar('conta de consumo com "fatura" continua gasto', ['DEB AUTOMATICO FATURA VIVO', 'PAGTO FATURA CLARO', 'FATURA ENERGIA', 'COMPRA CARTAO DEB MERCADO'].every((d) => papelDe(d) === 'gasto'));
   checar('transferência própria pela categoria com sufixo', papelDe('PIX ENVIADO', { category: 'Same person transfer - PIX' }) === 'fora' && papelDe('TED', { type: 'CREDIT', category: 'Same person transfer - TED' }) === 'fora' && papelDe('PIX ENVIADO', { category: 'Transfer - PIX' }) === 'gasto');
   checar('transferência própria pela descrição', ['TRANSF ENTRE CONTAS', 'TRANSFERENCIA MESMA TITULARIDADE', 'PIX RECEBIDO MESMA TITULARIDADE', 'Transferência entre contas'].every((d) => papelDe(d) === 'fora'));
+  checar('conta Pix no crédito não conta (o gasto está na fatura)',
+    lancamentoDaConta(txc({ description: 'Pix enviado com cartão MARIA SILVA', descriptionRaw: 'Pix enviado com cartão MARIA SILVA' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'Crédito liberado para Pix CARTAO X', descriptionRaw: 'Crédito liberado para Pix CARTAO X' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ description: 'Pix enviado MARIA SILVA', descriptionRaw: 'Pix enviado MARIA SILVA' }))!.papel === 'gasto');
   checar('conta aplicação e resgate não contam',
     lancamentoDaConta(txc({ description: 'APLICACAO CDB', descriptionRaw: 'APLICACAO CDB' }))!.papel === 'fora' &&
     lancamentoDaConta(txc({ type: 'CREDIT', amount: 1000, description: 'RESGATE CDB', descriptionRaw: 'RESGATE CDB' }))!.papel === 'fora' &&

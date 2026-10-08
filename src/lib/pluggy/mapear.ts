@@ -346,6 +346,11 @@ const CATEGORIA_INVESTIMENTO = /^(investments?|fixed income|variable income|mutu
 // "Transfer - PIX", "Transfers"... A transferência própria começa por "Same
 // person" e não casa aqui
 const CATEGORIA_TRANSFERENCIA = /^transfer/i;
+// Pix pago com o cartão de crédito: o banco credita o valor na conta ("Crédito
+// liberado para Pix") e logo debita o Pix ("Pix enviado com cartão"). O gasto
+// de verdade é a compra na fatura do cartão; as duas linhas da conta só
+// passam o dinheiro adiante e, contadas, dobrariam o gasto
+const PIX_NO_CREDITO = /\bPIX\b.*\bCOM\s+CARTAO\b|\bCREDITO\s+LIBERADO\s+PARA\s+PIX\b/;
 
 /**
  * Pagamento de fatura, transferência entre contas do mesmo titular, aplicação e
@@ -355,6 +360,7 @@ const CATEGORIA_TRANSFERENCIA = /^transfer/i;
  */
 export function papelDaConta(t: TransacaoPluggy, valor: number, descOrigem: string): Papel {
   const desc = semAcento(descOrigem);
+  if (PIX_NO_CREDITO.test(desc)) return 'fora';
   if (t.operationType === 'PAGAMENTO_FATURA' || t.category === 'Credit card payment' || PAGAMENTO_DE_FATURA.test(desc)) return 'fora';
   const d = dadosPagamento(t);
   const pagador = digitos(d?.payer);
