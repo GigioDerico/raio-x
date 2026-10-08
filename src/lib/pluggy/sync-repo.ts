@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { account, statement, syncRun, txn } from '@/db/schema';
 import { prefixoDedupe } from '../dedupe';
 import { chaveAprendizado, JANELA_DIAS } from '../descricao';
-import { idDaCategoria, planoDeParcela, regrasAprendidas } from '../txn-repo';
+import { idDaCategoria, planoDeParcela, regrasAprendidas, regrasDePapel } from '../txn-repo';
+import { chaveDaRegraDePapel } from '../papel';
 import {
   destinoNoSync,
   faturaDaBill,
@@ -222,7 +223,7 @@ export async function sincronizarConta(
 
     const acoes = planejarSync(accountId, existentes, recebidos, statementDoBill);
     const porId = new Map(existentes.map((e) => [e.id, e]));
-    const regras = await regrasAprendidas(userId);
+    const [regras, papeis] = await Promise.all([regrasAprendidas(userId), regrasDePapel(userId)]);
     // Pix para pessoa física não vai à IA: chega em "Outros" para o dono categorizar
     const outrosId = recebidos.some((r) => r.pessoaFisica) ? await idDaCategoria('Outros') : null;
     const comandos: unknown[] = [];
@@ -256,7 +257,7 @@ export async function sincronizarConta(
         if (a.suspeitoDuplicado) resultado.suspeitos++;
         else resultado.novos++;
         const regra = regras.get(chaveAprendizado(r.descNorm));
-        const destino = destinoNoSync(r, regra?.papel);
+        const destino = destinoNoSync(r, papeis.get(chaveDaRegraDePapel(r.descNorm)));
         posicoesInsert.push({ pos: comandos.length, vaiParaIA: destino.vaiParaIA });
         comandos.push(
           db
@@ -271,8 +272,8 @@ export async function sincronizarConta(
               descNorm: r.descNorm,
               apelido: regra?.apelido ?? null,
               categoryId: regra?.categoryId ?? (destino.outros ? outrosId : null),
-              // só a categoria aprendida faz a fonte ser 'regra': a regra que traz só papel ou
-              // só apelido deixaria o gasto sem categoria e fora da IA para sempre
+              // só a categoria aprendida faz a fonte ser 'regra': a regra que traz só apelido
+              // deixaria o gasto sem categoria e fora da IA para sempre
               // (`precisaCategoria` exige fonte 'ia' e categoria vazia)
               categoryFonte: regra?.categoryId ? 'regra' : 'ia',
               tipo: r.tipo,

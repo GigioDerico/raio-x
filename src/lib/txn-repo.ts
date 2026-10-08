@@ -1,6 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, like, lt, lte, ne, notInArray, notLike, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   account,
@@ -18,6 +18,8 @@ import { mesPorExtenso } from './filtro';
 import { categoriaHerdada, chaveDoNome } from './nome-na-tela';
 import { planoDaParcela, tipoDoTxn } from './importacao';
 import type { LancLimpo } from './extracao';
+import { chaveDaRegraDePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel } from './papel';
+import type { Papel } from './pluggy/mapear';
 
 // espelho de `chaveDoNome(nomeNaTela(l))` (src/lib/nome-na-tela.ts): o nome que
 // a lista mostra, sem maiúscula nem espaço sobrando. `nullif` repete o `||` da tela
@@ -45,6 +47,8 @@ export type FiltroTxn = {
   busca?: string | null;
   /** nome na tela de um estabelecimento: só os dele, pela mesma chave da 3.8 */
   nome?: string | null;
+  /** 'fora' = a aba "Não conta" de Lançamentos: só os débitos que não contam (6.1) */
+  papel?: 'gasto' | 'fora';
   limite?: number;
 };
 
@@ -60,8 +64,10 @@ export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.k
 
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
-  // crédito, renda e o que não conta não são gasto: a 6.1 os mostra em Entradas e no "Não conta"
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
+  // o que não conta não é gasto: a aba "Não conta" o mostra (6.1)
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, f.papel ?? 'gasto')];
+  // crédito não é lançamento de gasto: a aba mostra só débitos
+  if (f.papel === 'fora') cond.push(gt(txn.valor, '0'));
 
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
   // os ids vêm do cliente; o join da conta abaixo confirma a posse
@@ -97,6 +103,8 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
       contaApelido: account.apelido,
       contaLast4: account.last4,
       contaBanco: rotuloDaConta,
+      papel: txn.papel,
+      contaKind: account.kind,
     })
     .from(txn)
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
@@ -107,6 +115,21 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
     .where(and(...cond))
     .orderBy(desc(txn.data), asc(txn.descNorm))
     .limit(Math.min(f.limite ?? 500, 2000));
+}
+
+/** O N do alternador "Não conta (N)": débitos fora dos totais no recorte. */
+export async function contarNaoConta(userId: string, f: { mes?: string | null; accountIds?: string[] }) {
+  // o mesmo recorte de `listarTxn` na aba "Não conta", senão o N não bate com a lista
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'fora'), gt(txn.valor, '0')];
+  if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
+  if (f.accountIds?.length) cond.push(inArray(txn.accountId, f.accountIds));
+  const [linha] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(txn)
+    .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId)))
+    .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
+    .where(and(...cond));
+  return linha?.n ?? 0;
 }
 
 export type OpcoesFiltro = {
@@ -390,12 +413,123 @@ export async function aprender(
     });
 }
 
+/** As regras de categoria e apelido, por `chaveAprendizado`. As de papel ficam de fora: são outra chave. */
 export async function regrasAprendidas(userId: string) {
   const linhas = await db
-    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido, papel: learnedLabel.papel })
+    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido })
     .from(learnedLabel)
-    .where(eq(learnedLabel.userId, userId));
+    .where(and(eq(learnedLabel.userId, userId), notLike(learnedLabel.descNorm, `${PREFIXO_PAPEL}%`)));
   return new Map(linhas.map((l) => [l.descNorm, l]));
+}
+
+/** As regras de papel, pela chave `papel:<descrição exata>` (`chaveDaRegraDePapel`). */
+export async function regrasDePapel(userId: string): Promise<Map<string, 'renda' | 'fora'>> {
+  const linhas = await db
+    .select({ descNorm: learnedLabel.descNorm, papel: learnedLabel.papel })
+    .from(learnedLabel)
+    .where(and(eq(learnedLabel.userId, userId), like(learnedLabel.descNorm, `${PREFIXO_PAPEL}%`), isNotNull(learnedLabel.papel)));
+  const mapa = new Map<string, 'renda' | 'fora'>();
+  for (const l of linhas) if (l.papel === 'renda' || l.papel === 'fora') mapa.set(l.descNorm, l.papel);
+  return mapa;
+}
+
+const contasCorrentes = (userId: string) =>
+  db.select({ id: account.id }).from(account).where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente')));
+
+/** O sinal que cada papel admite, no SQL — o mesmo de `papelAceito`. */
+const sinalDoPapel = (papel: Papel) =>
+  papel === 'fora' ? sql`true` : papel === 'gasto' ? gt(txn.valor, '0') : lt(txn.valor, '0');
+
+/**
+ * Grava as regras de papel destas chaves numa consulta só (até 500 linhas por
+ * marcação). A linha `papel:` não tem categoria nem apelido, então `null` — voltar
+ * — a apaga em vez de deixar uma regra vazia.
+ */
+async function aprenderPapel(userId: string, chaves: readonly string[], regra: 'renda' | 'fora' | null) {
+  if (chaves.length === 0) return;
+  if (regra === null) {
+    await db.delete(learnedLabel).where(and(eq(learnedLabel.userId, userId), inArray(learnedLabel.descNorm, [...chaves])));
+    return;
+  }
+  await db
+    .insert(learnedLabel)
+    .values(chaves.map((descNorm) => ({ userId, descNorm, papel: regra })))
+    .onConflictDoUpdate({
+      target: [learnedLabel.userId, learnedLabel.descNorm],
+      set: { papel: regra, hits: sql`${learnedLabel.hits} + 1`, atualizadoEm: new Date() },
+    });
+}
+
+/**
+ * A marcação do dono (6.1): grava `papel` como manual — nenhum sync a desfaz —,
+ * ensina a regra da descrição e a leva às linhas automáticas da mesma descrição.
+ * Só conta corrente, e só o papel que cabe no sinal: o resto dos `ids` é pulado.
+ * Pix para pessoa física é marcado mas não ensina nada (`podeAprender`).
+ */
+export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
+  if (ids.length === 0) return { alterados: 0, outros: 0, aprendeu: false };
+  const linhas = await db
+    .update(txn)
+    .set({ papel, papelFonte: 'manual' })
+    .where(
+      and(
+        inArray(txn.id, ids),
+        eq(txn.userId, userId),
+        isNull(txn.excluidoEm),
+        inArray(txn.accountId, contasCorrentes(userId)),
+        sinalDoPapel(papel),
+      ),
+    )
+    .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica });
+
+  const chaves = new Set(linhas.filter(podeAprender).map((l) => chaveDaRegraDePapel(l.descNorm)).filter(Boolean));
+  await aprenderPapel(userId, [...chaves], regraDoPapel(papel));
+
+  let outros = 0;
+  const origens = origensDoPapel(papel);
+  if (chaves.size && origens.length) {
+    // a chave da regra (descrição sem dígitos) só existe em JS: escolhe as candidatas
+    // no banco e confere a chave aqui. Linha de pessoa física não recebe regra,
+    // como no sync (`destinoNoSync`)
+    const candidatas = await db
+      .select({ id: txn.id, descNorm: txn.descNorm, valor: txn.valor })
+      .from(txn)
+      .where(
+        and(
+          eq(txn.userId, userId),
+          isNull(txn.excluidoEm),
+          eq(txn.papelFonte, 'auto'),
+          eq(txn.pessoaFisica, false),
+          inArray(txn.papel, origens),
+          inArray(txn.accountId, contasCorrentes(userId)),
+          notInArray(txn.id, ids),
+        ),
+      );
+    const alvo = candidatas
+      .filter((c) => chaves.has(chaveDaRegraDePapel(c.descNorm)) && papelAceito(Number(c.valor), papel))
+      .map((c) => c.id);
+    if (alvo.length) {
+      // continuam 'auto': vieram da regra, e desfazer a regra as devolve
+      const feitas = await db
+        .update(txn)
+        .set({ papel })
+        .where(
+          // as travas do select de novo: entre ele e o update, um sync pode ter gravado a linha
+          and(
+            inArray(txn.id, alvo),
+            eq(txn.userId, userId),
+            isNull(txn.excluidoEm),
+            eq(txn.papelFonte, 'auto'),
+            eq(txn.pessoaFisica, false),
+            inArray(txn.papel, origens),
+            inArray(txn.accountId, contasCorrentes(userId)),
+          ),
+        )
+        .returning({ id: txn.id });
+      outros = feitas.length;
+    }
+  }
+  return { alterados: linhas.length, outros, aprendeu: chaves.size > 0 };
 }
 
 const cacheCategorias = new Map<string, number>();
@@ -503,7 +637,8 @@ export async function importarDoPdf(
         descNorm: p.descNorm,
         apelido: regra?.apelido ?? null,
         categoryId,
-        categoryFonte: regra ? 'regra' : 'ia',
+        // como no sync: regra só de apelido não é categoria aprendida
+        categoryFonte: regra?.categoryId ? 'regra' : 'ia',
         tipo,
         installmentId,
         parcelaN: parcela?.n ?? null,

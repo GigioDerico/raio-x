@@ -14,6 +14,16 @@ de existir, porque passa a ser medido.
 o mostra nesta fatia. "Quanto posso gastar até o fim do mês" também fica para
 depois.
 
+> **Revisão de 2026-10-08 (conferência da 6.1) — vale sobre o resto do texto.**
+> A renda é **digitada pelo dono**, não garimpada dos lançamentos. Por isso:
+> a tela Entradas, "É renda" e o aprendizado de renda saem (a 6.1 já os removeu);
+> `renda_declarada` **fica** em Ajustes e a 6.3 não a apaga — só
+> `gasto_fora_cartao` sai (a conta corrente já traz esses gastos); a 6.2 usa a
+> renda digitada (por mês ou fixa) no painel, no plano e no Previsto, e
+> `sem_renda` manda para Ajustes. "Não conta" continua, só em débitos.
+> Pix, TED e DOC não ensinam regra de papel: a descrição se repete para destinos
+> diferentes e a regra arrastaria todos.
+
 ## Decisões do brainstorming
 
 | Pergunta | Decidido |
@@ -153,17 +163,18 @@ pelo sync. Desmarcar apaga o aprendizado e devolve essas linhas `auto` para
 - mês sem créditos → aviso para trocar o mês;
 - nenhuma renda marcada ainda → dica de que marcar uma vez basta.
 
-### Ajustes
+### Ajustes (6.2)
 
 - Saem os campos "renda declarada" e "gasto fora do cartão". A meta de poupança fica.
 - As contas correntes aparecem na lista de contas, com apelido editável como os cartões.
 
 ### API
 
-- `PATCH /api/txn/[id]` aceita `papel`, com a posse no `where` (regra 2).
-- Só é aceito em lançamento de conta corrente. Débito admite `gasto` ou `fora`.
-  Crédito admite `entrada`, `renda` ou `fora`. Qualquer outro caso → `ErroDeUso`.
-- A multi-seleção usa a rota em lote que já existe.
+- `PATCH /api/txn/papel` com `{ ids, papel }` (1 a 500 ids) serve à linha e ao
+  lote, nas duas telas; a posse e o tipo de conta ficam no `where` (regra 2).
+- Só lançamento de conta corrente muda de papel. Débito admite `gasto` ou
+  `fora`; crédito admite `entrada`, `renda` ou `fora`. O que não cabe é pulado;
+  se nada coube → `ErroDeUso`.
 
 ## 3. Painel e plano
 

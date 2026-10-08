@@ -324,6 +324,20 @@ input.tl-val { width: 6.5rem; padding: 0.35rem 0.6rem; text-align: right; font-v
 input.tl-val.neg { color: var(--good-text); }
 .tl-del { grid-area: del; justify-self: center; }
 
+/* 6.1: Gastos · Não conta. Dois botões, o ativo em acento — aria-pressed é o
+   estado. 44px no celular (alvo de toque); compacto a partir de 48rem */
+.alternador { display: inline-flex; gap: 0.25rem; margin: 0 0 0.75rem; padding: 0.2rem; border: 1px solid var(--hair); border-radius: 999px; }
+.alternador button { margin: 0; min-height: 44px; padding: 0.35rem 0.9rem; font-size: 0.85rem; background: none; color: var(--ink-2); }
+/* sem isto o hover do botão padrão pinta --accent-2 sob o texto --ink-2 */
+.alternador button:hover:not([disabled]) { background: var(--surface-2); }
+.alternador button[aria-pressed='true'],
+.alternador button[aria-pressed='true']:hover:not([disabled]) { background: var(--accent); color: var(--btn-ink); }
+/* "não conta" / "contar": na meta no celular, à direita e com 44px de alvo
+   (a linha da meta cresce só nas linhas da conta corrente) */
+.tl-meta { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.tl-meta-texto { min-width: 0; overflow-wrap: anywhere; }
+button.link.tl-papel { flex: none; margin: 0 0 0 auto; min-height: 44px; padding: 0.1rem 0.6rem; font-size: 0.8rem; }
+
 .tl-todos-rodape { display: flex; align-items: center; gap: 0.5rem; margin: 0.6rem 0 0; font-size: 0.85rem; color: var(--ink-2); }
 
 @media (min-width: 48rem) {
@@ -367,6 +381,9 @@ input.tl-val.neg { color: var(--good-text); }
     white-space: nowrap;
     color: var(--ink-2);
   }
+  /* embaixo da origem; 24px é o mínimo de alvo (WCAG 2.2) num ponteiro fino */
+  .tl-cartao button.link.tl-papel { display: block; min-height: 24px; margin: 0.1rem 0 0 -0.4rem; padding: 0 0.4rem; font-size: 0.75rem; }
+  .alternador button { min-height: 0; }
   input.tl-val { width: 100%; }
   .tl-todos-rodape { display: none; }
 }
