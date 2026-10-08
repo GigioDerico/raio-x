@@ -536,10 +536,11 @@ async function main() {
 
   const cfgSemLinha = configDoUsuario(undefined);
   checar('config sem linha usa defaults das colunas', cfgSemLinha.renda === 0 && cfgSemLinha.metaPoupanca === 20 && cfgSemLinha.foraCartao === 0);
-  const cfgRendaNula = configDoUsuario({ renda: null, meta: '15.00', fora: '350.50' });
-  checar('config com renda nula', cfgRendaNula.renda === 0 && cfgRendaNula.metaPoupanca === 15 && cfgRendaNula.foraCartao === 350.5);
-  const cfgCheia = configDoUsuario({ renda: '8000.00', meta: '20.00', fora: '0' });
+  const cfgRendaNula = configDoUsuario({ renda: null, meta: '15.00' });
+  checar('config com renda nula', cfgRendaNula.renda === 0 && cfgRendaNula.metaPoupanca === 15 && cfgRendaNula.foraCartao === 0);
+  const cfgCheia = configDoUsuario({ renda: '8000.00', meta: '20.00' });
   checar('config converte numeric em número', cfgCheia.renda === 8000 && cfgCheia.metaPoupanca === 20 && cfgCheia.foraCartao === 0);
+  checar('"fora do cartão" não existe mais: a conta corrente já traz esses gastos', configDoUsuario({ renda: '8000.00', meta: '20.00', fora: '350.50' } as never).foraCartao === 0);
   checar('CONFIG_PADRAO bate com os defaults', JSON.stringify(cfgSemLinha) === JSON.stringify(CONFIG_PADRAO));
 
   // ---- categorias ----------------------------------------------------------

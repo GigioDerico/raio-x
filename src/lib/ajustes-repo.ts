@@ -10,12 +10,11 @@ import type { CartaoAjuste, MudancaConfig, MudancaConta } from './ajustes';
 const colunasConfig = {
   renda: userSetting.rendaDeclarada,
   meta: userSetting.metaPoupanca,
-  fora: userSetting.gastoForaCartao,
   modeloIa: userSetting.modeloIa,
   tetoIaUsd: userSetting.tetoIaUsd,
 };
 
-type LinhaConfig = { renda: string | null; meta: string; fora: string; modeloIa: string; tetoIaUsd: string | null };
+type LinhaConfig = { renda: string | null; meta: string; modeloIa: string; tetoIaUsd: string | null };
 
 function configCompleta(linha: LinhaConfig | undefined) {
   return {
@@ -34,7 +33,6 @@ export async function salvarConfig(userId: string, m: MudancaConfig) {
   const campos: Partial<typeof userSetting.$inferInsert> = {};
   if (m.renda !== undefined) campos.rendaDeclarada = m.renda === null ? null : m.renda.toFixed(2);
   if (m.metaPoupanca !== undefined) campos.metaPoupanca = m.metaPoupanca.toFixed(2);
-  if (m.foraCartao !== undefined) campos.gastoForaCartao = m.foraCartao.toFixed(2);
   // vazio volta ao modelo do .env; a coluna é not null
   if (m.modeloIa !== undefined) campos.modeloIa = m.modeloIa ?? env.OPENROUTER_MODEL;
   if (m.tetoIaUsd !== undefined) campos.tetoIaUsd = m.tetoIaUsd === null ? null : m.tetoIaUsd.toFixed(2);

@@ -113,13 +113,18 @@ export function separarObra(faturas: readonly Fatura[]): {
   return { faturas: semObra, obraPorMes };
 }
 
-/** `numeric` chega do driver como string; sem linha, valem os defaults das colunas. */
+/**
+ * `numeric` chega do driver como string; sem linha, valem os defaults das colunas.
+ * `foraCartao` fica em 0: a conta corrente já traz Pix, boleto e débito nos
+ * totais, e estimar de novo contaria duas vezes. O campo continua porque os
+ * cálculos portados o leem.
+ */
 export function configDoUsuario(
-  linha: { renda: string | null; meta: string | null; fora: string | null } | undefined,
+  linha: { renda: string | null; meta: string | null } | undefined,
 ): { renda: number; metaPoupanca: number; foraCartao: number } {
   return {
     renda: Number(linha?.renda ?? CONFIG_PADRAO.renda),
     metaPoupanca: Number(linha?.meta ?? CONFIG_PADRAO.metaPoupanca),
-    foraCartao: Number(linha?.fora ?? CONFIG_PADRAO.foraCartao),
+    foraCartao: 0,
   };
 }
