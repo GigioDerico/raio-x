@@ -398,6 +398,10 @@ export async function aprender(
 ) {
   const chave = chaveAprendizado(descNorm);
   if (!chave) return;
+  // Pix/TED repete a mesma descrição para pessoa e empresa: um apelido com nome de
+  // pessoa, ao virar regra, seria pintado (e mandado à IA) em linha não privada.
+  // A categoria ainda aprende; o apelido vale só na linha em que o dono o escreveu
+  if (pareceTransferenciaParaPessoa(descNorm)) apelido = undefined;
 
   await db
     .insert(learnedLabel)
@@ -635,7 +639,8 @@ export async function importarDoPdf(
         valor: p.valor.toFixed(2),
         descOrigem: p.original.desc,
         descNorm: p.descNorm,
-        apelido: regra?.apelido ?? null,
+        // regra de apelido não pinta Pix/TED (ver `aprender`)
+        apelido: pareceTransferenciaParaPessoa(p.original.desc) ? null : (regra?.apelido ?? null),
         categoryId,
         // como no sync: regra só de apelido não é categoria aprendida
         categoryFonte: regra?.categoryId ? 'regra' : 'ia',
