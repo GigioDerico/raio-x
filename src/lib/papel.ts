@@ -2,7 +2,7 @@
  * O papel de um lançamento da conta corrente quando o dono o corrige (6.1).
  * Puro, sem `server-only`: o teste importa direto.
  */
-import { normalizarDescricao } from './descricao';
+import { normalizarDescricao, pareceTransferenciaParaPessoa } from './descricao';
 import type { Papel } from './pluggy/mapear';
 
 /**
@@ -22,8 +22,13 @@ export function chavePapel(descNorm: string): string {
  */
 export const PREFIXO_PAPEL = 'papel:';
 
-/** A linha de `learned_label` que guarda o papel desta descrição; vazia se não há o que aprender. */
+/**
+ * A linha de `learned_label` que guarda o papel desta descrição; vazia se não há o que aprender.
+ * Pix/TED/DOC não ensina: "Pix enviado" ou "Pix recebido <nome>" repete a mesma
+ * descrição para destinos e origens diferentes, e a regra arrastaria todos.
+ */
 export function chaveDaRegraDePapel(descNorm: string): string {
+  if (pareceTransferenciaParaPessoa(descNorm)) return '';
   const chave = chavePapel(descNorm);
   return chave ? PREFIXO_PAPEL + chave : '';
 }

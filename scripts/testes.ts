@@ -902,6 +902,7 @@ async function main() {
   checar('chave do papel: emissores diferentes dão chaves diferentes', chavePapel('PAGAMENTO DE BOLETO ITAU UNIBANCO') !== chavePapel('PAGAMENTO DE BOLETO BANCO PAN'));
   checar('chave do papel: Pix para pessoa e para empresa não se misturam', chavePapel('PIX ENVIADO CP MARIA SILVA') !== chavePapel('PIX ENVIADO CP EMPRESA X'));
   checar('chave do papel: no máximo 120 caracteres', chavePapel('EMPRESA X '.repeat(30)).length <= 120 && !chavePapel('EMPRESA X '.repeat(30)).endsWith(' '));
+  checar('Pix e TED não ensinam regra de papel', chaveDaRegraDePapel('PIX ENVIADO') === '' && chaveDaRegraDePapel('PIX RECEBIDO FULANO') === '' && chaveDaRegraDePapel('TED 001 EMPRESA') === '');
   checar('chave do papel: só dígitos não ensina nada', chavePapel('12345 678') === '' && chaveDaRegraDePapel('12345') === '');
   // o prefixo impede que a regra de papel e a de categoria caiam na mesma linha
   checar('chave da regra de papel tem prefixo e nunca é chave de categoria', chaveDaRegraDePapel('PAGAMENTO DE BOLETO BANCO PAN').startsWith(PREFIXO_PAPEL) && !chaveAprendizado('papel: PAGAMENTO').startsWith(PREFIXO_PAPEL));
