@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Auditoria de Segurança — Raio-X</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1F2933;
+    font-size: 11.5px;
+    line-height: 1.5;
+    margin: 0;
+    background: #ffffff;
+  }
+  .pagina-rodape {
+    font-size: 9px;
+    color: #9AA5B1;
+    text-align: center;
+    margin-top: 8px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px 0; color: #0F172A; }
+  h2 { font-size: 17px; margin: 0 0 10px 0; color: #0F172A; border-bottom: 2px solid #E2E8F0; padding-bottom: 6px; }
+  h3 { font-size: 13.5px; margin: 18px 0 6px 0; color: #0F172A; }
+  h4 { font-size: 12px; margin: 14px 0 4px 0; color: #0F172A; }
+  p { margin: 6px 0; }
+  .secao { page-break-before: always; padding-top: 4px; }
+  .capa { page-break-before: avoid; display: flex; flex-direction: column; justify-content: center; min-height: 90vh; text-align: center; }
+  .capa .selo {
+    width: 72px; height: 72px; border-radius: 50%; background: #B91C1C; margin: 0 auto 24px auto;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30px; font-weight: 700;
+  }
+  .capa h1 { font-size: 30px; margin-bottom: 10px; }
+  .capa .sub { font-size: 14px; color: #52606D; margin-bottom: 30px; }
+  .capa .ficha {
+    margin: 0 auto; max-width: 480px; text-align: left; background: #F8FAFC; border: 1px solid #E2E8F0;
+    border-radius: 10px; padding: 18px 22px;
+  }
+  .capa .ficha dt { font-weight: 700; color: #334155; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; margin-top: 10px; }
+  .capa .ficha dd { margin: 2px 0 0 0; font-size: 11.5px; }
+  .capa .nota {
+    max-width: 520px; margin: 24px auto 0 auto; font-size: 10px; color: #64748B; text-align: left;
+    background: #FFF7ED; border-left: 3px solid #D97706; padding: 10px 14px; border-radius: 6px;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+  th { background: #F1F5F9; font-size: 10.5px; text-transform: uppercase; letter-spacing: .02em; color: #475569; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { background: #F1F5F9; padding: 1px 4px; border-radius: 4px; font-size: 10.5px; color: #0F172A; }
+  .arquivo { font-family: "SF Mono", Consolas, monospace; font-size: 10px; color: #334155; white-space: nowrap; }
+
+  .chip {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 9.5px; font-weight: 700;
+    color: #fff; text-align: center; white-space: nowrap;
+  }
+  .chip-critica { background: #B91C1C; }
+  .chip-alta { background: #EA580C; }
+  .chip-media { background: #D97706; }
+  .chip-baixa { background: #2563EB; }
+  .chip-informativa { background: #6B7280; }
+  .chip-ponto-forte { background: #059669; }
+
+  .resumo-grid { display: flex; gap: 14px; margin: 14px 0 20px 0; }
+  .resumo-grid .cartao {
+    flex: 1; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 6px; text-align: center;
+  }
+  .resumo-grid .cartao .num { font-size: 22px; font-weight: 800; }
+  .resumo-grid .cartao .rot { font-size: 9.5px; color: #64748B; text-transform: uppercase; letter-spacing: .03em; }
+
+  .graficos { display: flex; gap: 22px; margin: 10px 0 10px 0; align-items: flex-start; }
+  .grafico-caixa { flex: 1; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; }
+  .grafico-caixa h4 { margin-top: 0; text-align: center; }
+  .legenda { font-size: 10px; margin-top: 10px; }
+  .legenda .item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  .legenda .bola { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+
+  .duas-colunas { display: flex; gap: 20px; }
+  .duas-colunas > div { flex: 1; }
+  .caixa-pontos {
+    border-radius: 8px; padding: 12px 14px; font-size: 10.8px;
+  }
+  .caixa-fortes { background: #ECFDF5; border: 1px solid #A7F3D0; }
+  .caixa-fracos { background: #FEF2F2; border: 1px solid #FECACA; }
+  .caixa-pontos h3 { margin-top: 0; }
+  .caixa-pontos ul { margin: 6px 0 0 0; padding-left: 18px; }
+  .caixa-pontos li { margin-bottom: 6px; }
+
+  .recomendacoes ol { padding-left: 20px; }
+  .recomendacoes li { margin-bottom: 10px; }
+  .prioridade-tag {
+    display: inline-block; font-size: 9.5px; font-weight: 700; color: #fff; background: #334155;
+    border-radius: 4px; padding: 1px 7px; margin-right: 6px;
+  }
+  .p1 { background: #B91C1C; }
+  .p2 { background: #D97706; }
+  .p3 { background: #2563EB; }
+
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: #0F172A;
+    color: #E2E8F0;
+    font-size: 9.5px;
+    line-height: 1.5;
+    padding: 14px;
+    border-radius: 8px;
+    margin: 10px 0 18px 0;
+  }
+  .issue-marcador {
+    font-family: "SF Mono", Consolas, monospace; font-size: 10px; color: #B91C1C; font-weight: 700;
+    margin: 16px 0 2px 0;
+  }
+  .rodape-doc { font-size: 9px; color: #9AA5B1; margin-top: 30px; border-top: 1px solid #E2E8F0; padding-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ======================= CAPA ======================= -->
+<section class="capa">
+  <div class="selo">!</div>
+  <h1>Relatório de Auditoria de Segurança</h1>
+  <div class="sub">Raio-X — app pessoal de finanças (Open Finance + faturas em PDF)</div>
+
+  <div class="ficha">
+    <dt>Data</dt>
+    <dd>06/10/2026</dd>
+
+    <dt>Escopo auditado</dt>
+    <dd>
+      Código-fonte completo da branch <code>tarefa-4.3-auditoria</code> (a partir
+      do commit <code>8c342f6</code>): todas as rotas de <code>src/app/api/**/route.ts</code>
+      (28 handlers), middleware, repositórios (<code>src/lib/**-repo.ts</code>,
+      <code>src/lib/pluggy/*.ts</code>), autenticação e sessão
+      (<code>auth.ts</code>, <code>session.ts</code>, <code>senha.ts</code>),
+      integração com IA (<code>openrouter.ts</code>, <code>ia.ts</code>,
+      <code>extracao.ts</code>), configuração (<code>env.ts</code>,
+      <code>next.config.ts</code>, <code>vercel.json</code>), workflows do
+      GitHub Actions e histórico completo do git (262 commits, <code>git log -p --all</code>).
+      Auditoria só de leitura: nenhum código alterado, nenhum build, nenhuma
+      chamada real a Pluggy, OpenRouter, rotas ou banco.
+    </dd>
+
+    <dt>Roteiro</dt>
+    <dd><code>docs/security-audit/prompt-auditoria.md</code> — cinco categorias
+      clássicas (banco sem tranca, permissão no navegador, IDOR, chaves
+      expostas, inputs sem tratamento) mais quatro categorias extras do
+      projeto (força bruta no login, replay de webhook, minimização do que vai
+      para a IA, CPF/titular não gravados).</dd>
+  </div>
+
+  <div class="nota">
+    <strong>Nota metodológica.</strong> Stack detectada: Next.js 15.5.26 (App
+    Router) + React 19.3, Neon Postgres via <code>@neondatabase/serverless</code>
+    com Drizzle ORM 0.45.3, autenticação por senha única (scrypt) com cookie
+    assinado HMAC-SHA256, sem RLS nem tabela de papéis. Cada categoria do
+    roteiro foi mapeada ao equivalente desta stack: <em>banco sem tranca</em> →
+    ausência de RLS, isolamento manual por <code>user_id</code> da sessão em
+    toda consulta; <em>permissão no navegador</em> → app de um usuário sem
+    papéis, virou "toda rota se defende sozinha" (middleware +
+    revalidação em cada handler); <em>IDOR</em> → percorridos sistematicamente
+    os 28 handlers de rota, não por amostragem; <em>chaves expostas</em> →
+    varredura do histórico completo do git, configs, workflows e bundle do
+    front por padrões de segredo; <em>inputs sem tratamento</em> → busca por
+    <code>dangerouslySetInnerHTML</code>/<code>innerHTML</code>/<code>eval</code>,
+    pontos de renderização de texto de IA e CSV.
+  </div>
+</section>
+
+<!-- ======================= RESUMO EXECUTIVO ======================= -->
+<section class="secao">
+  <h2>Resumo executivo</h2>
+
+  <p>Onze achados no total, nenhum crítico ou alto. Os três riscos de
+  severidade média estão fora das cinco categorias clássicas: o texto bruto do
+  PDF vai ao OpenRouter sem passar por <code>ia.ts</code>, o teto de gasto de
+  IA não é aplicado em lugar nenhum, e o limite de tentativas do login pode ser
+  contornado. O isolamento por <code>user_id</code> e a posse dentro do
+  <code>where</code> estão corretos em todos os 28 handlers e repositórios
+  verificados.</p>
+
+  <div class="resumo-grid">
+    <div class="cartao"><div class="num" style="color:#B91C1C">0</div><div class="rot">Crítica</div></div>
+    <div class="cartao"><div class="num" style="color:#EA580C">0</div><div class="rot">Alta</div></div>
+    <div class="cartao"><div class="num" style="color:#D97706">3</div><div class="rot">Média</div></div>
+    <div class="cartao"><div class="num" style="color:#2563EB">4</div><div class="rot">Baixa</div></div>
+    <div class="cartao"><div class="num" style="color:#6B7280">4</div><div class="rot">Informativa</div></div>
+    <div class="cartao"><div class="num" style="color:#0F172A">11</div><div class="rot">Total</div></div>
+  </div>
+
+  <div class="graficos">
+    <!-- Donut por severidade -->
+    <div class="grafico-caixa">
+      <h4>Achados por severidade</h4>
+      <svg width="220" height="220" viewBox="0 0 220 220" style="display:block;margin:0 auto;">
+        <g transform="translate(110,110) rotate(-90)">
+          <circle r="70" fill="none" stroke="#EDF1F5" stroke-width="34"></circle>
+          <!-- média: 3/11 -->
+          <circle r="70" fill="none" stroke="#D97706" stroke-width="34"
+            stroke-dasharray="119.95 319.87" stroke-dashoffset="0"></circle>
+          <!-- baixa: 4/11 -->
+          <circle r="70" fill="none" stroke="#2563EB" stroke-width="34"
+            stroke-dasharray="159.93 279.89" stroke-dashoffset="-119.95"></circle>
+          <!-- informativa: 4/11 -->
+          <circle r="70" fill="none" stroke="#6B7280" stroke-width="34"
+            stroke-dasharray="159.93 279.89" stroke-dashoffset="-279.88"></circle>
+        </g>
+        <text x="110" y="104" text-anchor="middle" font-size="26" font-weight="800" fill="#0F172A">11</text>
+        <text x="110" y="124" text-anchor="middle" font-size="10" fill="#64748B">achados</text>
+      </svg>
+      <div class="legenda">
+        <div class="item"><span class="bola" style="background:#B91C1C"></span>Crítica — 0</div>
+        <div class="item"><span class="bola" style="background:#EA580C"></span>Alta — 0</div>
+        <div class="item"><span class="bola" style="background:#D97706"></span>Média — 3</div>
+        <div class="item"><span class="bola" style="background:#2563EB"></span>Baixa — 4</div>
+        <div class="item"><span class="bola" style="background:#6B7280"></span>Informativa — 4</div>
+      </div>
+    </div>
+
+    <!-- Barras por categoria -->
+    <div class="grafico-caixa">
+      <h4>Achados por categoria</h4>
+      <svg width="300" height="220" viewBox="0 0 300 220">
+        <!-- eixo -->
+        <line x1="34" y1="178" x2="296" y2="178" stroke="#CBD5E1" stroke-width="1"></line>
+        <!-- grade -->
+        <line x1="34" y1="138" x2="296" y2="138" stroke="#EDF1F5" stroke-width="1"></line>
+        <line x1="34" y1="98" x2="296" y2="98" stroke="#EDF1F5" stroke-width="1"></line>
+        <line x1="34" y1="58" x2="296" y2="58" stroke="#EDF1F5" stroke-width="1"></line>
+        <text x="30" y="181" text-anchor="end" font-size="8" fill="#94A3B8">0</text>
+        <text x="30" y="141" text-anchor="end" font-size="8" fill="#94A3B8">2</text>
+        <text x="30" y="101" text-anchor="end" font-size="8" fill="#94A3B8">4</text>
+        <text x="30" y="61" text-anchor="end" font-size="8" fill="#94A3B8">6</text>
+
+        <!-- barras: altura = valor*20 a partir de y=178 -->
+        <!-- cat1: 0 -->
+        <rect x="40" y="178" width="30" height="0" fill="#2563EB"></rect>
+        <text x="55" y="190" text-anchor="middle" font-size="7.3" fill="#475569">1</text>
+        <text x="55" y="172" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">0</text>
+
+        <!-- cat2: 3 -->
+        <rect x="83" y="118" width="30" height="60" fill="#2563EB"></rect>
+        <text x="98" y="190" text-anchor="middle" font-size="7.3" fill="#475569">2</text>
+        <text x="98" y="112" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">3</text>
+
+        <!-- cat3: 0 -->
+        <rect x="126" y="178" width="30" height="0" fill="#2563EB"></rect>
+        <text x="141" y="190" text-anchor="middle" font-size="7.3" fill="#475569">3</text>
+        <text x="141" y="172" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">0</text>
+
+        <!-- cat4: 2 -->
+        <rect x="169" y="138" width="30" height="40" fill="#2563EB"></rect>
+        <text x="184" y="190" text-anchor="middle" font-size="7.3" fill="#475569">4</text>
+        <text x="184" y="132" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">2</text>
+
+        <!-- cat5: 1 -->
+        <rect x="212" y="158" width="30" height="20" fill="#2563EB"></rect>
+        <text x="227" y="190" text-anchor="middle" font-size="7.3" fill="#475569">5</text>
+        <text x="227" y="152" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">1</text>
+
+        <!-- extras: 5 -->
+        <rect x="255" y="78" width="30" height="100" fill="#059669"></rect>
+        <text x="270" y="190" text-anchor="middle" font-size="7.3" fill="#475569">Ex.</text>
+        <text x="270" y="72" text-anchor="middle" font-size="8.5" fill="#0F172A" font-weight="700">5</text>
+      </svg>
+      <div class="legenda" style="font-size:9px;">
+        1 banco sem tranca · 2 permissão no navegador · 3 IDOR · 4 chaves
+        expostas · 5 inputs sem tratamento · Ex. categorias extras do projeto
+        (login, sessão, IA, erro)
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= PONTOS FORTES E FRACOS ======================= -->
+<section class="secao">
+  <h2>Pontos fortes e pontos fracos</h2>
+
+  <div class="duas-colunas">
+    <div class="caixa-pontos caixa-fortes">
+      <h3><span class="chip chip-ponto-forte">Protegido</span> Pontos fortes</h3>
+      <ul>
+        <li><strong>Isolamento por dono em toda consulta.</strong> O id do
+        usuário sai só do cookie assinado (<code>src/lib/sessao-servidor.ts:14-18</code>);
+        todas as funções de <code>txn-repo.ts</code>, <code>painel-repo.ts</code>,
+        <code>dados-repo.ts</code>, <code>conexao-repo.ts</code>,
+        <code>ajustes-repo.ts</code>, <code>ia-uso-repo.ts</code> e
+        <code>plano-repo.ts</code> filtram por <code>user_id</code> no
+        <code>where</code>/<code>join</code>. Tabelas sem <code>user_id</code>
+        só são alcançadas por uma conta já conferida.</li>
+        <li><strong>IDOR — os 28 handlers de rota</strong> foram percorridos
+        integralmente: todo <code>[id]</code> de path, query ou corpo chega ao
+        banco junto do <code>user_id</code> no mesmo <code>where</code>. A
+        única ocorrência do formato "select seguido de if"
+        (<code>conexao-repo.ts:53-54</code>) não é a trava principal — o upsert
+        tem <code>setWhere</code> por dono.</li>
+        <li><strong>Rotas que se defendem sozinhas.</strong>
+        <code>src/middleware.ts:9,17-45</code> é privado por padrão; todo
+        handler revalida a sessão com <code>comUsuario</code>/<code>usuarioAtual</code>;
+        Next 15.5.26 já corrige o bypass de middleware CVE-2025-29927.</li>
+        <li><strong>Sessão e senha.</strong> HMAC verificado em tempo constante
+        (<code>src/lib/session.ts:44-71</code>), cookie <code>httpOnly</code>/<code>secure</code>,
+        scrypt com comprimento derivado fixo e <code>timingSafeEqual</code>
+        (<code>src/lib/senha.ts:43-68</code>), boot derrubado sem segredos
+        válidos (<code>src/env.ts:13-71</code>).</li>
+        <li><strong>Erros nunca vazam detalhe.</strong>
+        <code>src/lib/rota.ts:9-27</code> — só <code>ErroDeUso</code> devolve
+        mensagem; o resto vira 503 genérico com o detalhe só no log.</li>
+        <li><strong>Zero segredo no histórico do git</strong> (262 commits
+        varridos) e zero <code>NEXT_PUBLIC_</code> no código; CI com gitleaks a
+        cada push/PR e semanal.</li>
+        <li><strong>Zero ponto de XSS.</strong> Nenhum
+        <code>dangerouslySetInnerHTML</code>/<code>innerHTML</code>/<code>eval</code>
+        em <code>src/</code>; texto de IA vira elementos React escapados; CSV
+        protegido contra injeção de fórmula (<code>src/lib/csv.ts:27-30</code>).</li>
+        <li><strong>CPF e titular não gravados</strong> — <code>account</code>
+        não tem coluna para isso; os prompts da IA passam só descrição, data e
+        valor (regra 4 do <code>CLAUDE.md</code>), exceto o furo do A-09.</li>
+      </ul>
+    </div>
+
+    <div class="caixa-pontos caixa-fracos">
+      <h3><span class="chip chip-media">Risco</span> Pontos fracos (riscos centrais)</h3>
+      <ul>
+        <li><strong>Minimização do dado para a IA tem um furo real (A-09,
+        média).</strong> O texto bruto da fatura — com nome do titular,
+        endereço, limite e disponível — vai ao OpenRouter fora de
+        <code>ia.ts</code>, ao contrário da regra 4 do <code>CLAUDE.md</code>.</li>
+        <li><strong>Teto de gasto de IA é só visual (A-10, média).</strong>
+        <code>AI_BUDGET_USD_MONTH</code> e <code>teto_ia_usd</code> não bloqueiam
+        nenhuma chamada; não há limite de taxa em nenhuma rota de IA.</li>
+        <li><strong>Força bruta no login é contornável (A-07, média).</strong>
+        IP vem de <code>X-Forwarded-For</code> (forjável fora da Vercel);
+        checagem e gravação da falha não são atômicas (corrida).</li>
+        <li><strong>Sem revogação de sessão (A-08, baixa).</strong> Logout só
+        apaga o cookie local; um cookie copiado vale até 7 dias.</li>
+        <li><strong>CSRF de mesmo site (A-01, baixa)</strong> e
+        <strong>CSP com <code>unsafe-inline</code> (A-06, baixa)</strong> como
+        defesas em profundidade ausentes.</li>
+        <li><strong>Dado pessoal real em <code>docs/</code> (A-04, baixa)</strong>
+        que vai para um repositório público: banco, final de cartão e valores
+        reais do dono.</li>
+        <li><strong>Pré-condições da fatia 5 já abertas (A-02, A-03,
+        informativas).</strong> <code>/api/cron/*</code> e <code>/api/webhook/*</code>
+        já nascem públicos no middleware, e os segredos são opcionais.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= TABELA DE ACHADOS ======================= -->
+<section class="secao">
+  <h2>Achados detalhados por categoria</h2>
+
+  <h3>Categoria 1 · Banco sem tranca</h3>
+  <p>Nenhum achado. Isolamento por <code>user_id</code> verificado em todas as
+  consultas (ver pontos fortes).</p>
+
+  <h3>Categoria 2 · Permissão no navegador (rotas que se defendem)</h3>
+  <table>
+    <tr><th style="width:90px;">Severidade</th><th style="width:220px;">Arquivo:linha</th><th>Descrição</th></tr>
+    <tr>
+      <td><span class="chip chip-baixa">Baixa</span></td>
+      <td class="arquivo">src/lib/rota.ts:41-47<br>src/middleware.ts:14-46<br>src/app/api/dados/apagar/route.ts:12-14<br>src/app/api/auth/login/route.ts:74</td>
+      <td><strong>A-01</strong> — Rotas POST aceitam pedido "simples" sem checar
+      a origem (CSRF de mesmo site): <code>corpoJson</code> aceita qualquer
+      <code>content-type</code> e nem middleware nem rotas conferem
+      <code>Origin</code>/<code>Sec-Fetch-Site</code>. <code>SameSite=Lax</code>
+      só protege contra outro site, não contra um atacante no mesmo domínio
+      registrável.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-informativa">Informativa</span></td>
+      <td class="arquivo">src/middleware.ts:11-12,18<br>src/env.ts:43,48<br>vercel.json:3-5</td>
+      <td><strong>A-02</strong> — <code>/api/cron/*</code> e
+      <code>/api/webhook/*</code> ainda não existem, mas o middleware já os
+      libera sem sessão e <code>CRON_SECRET</code>/<code>PLUGGY_WEBHOOK_SECRET</code>
+      são opcionais, sem mínimo de tamanho. Pré-condição para a fatia 5.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-informativa">Informativa</span></td>
+      <td class="arquivo">src/middleware.ts:49</td>
+      <td><strong>A-03</strong> — O matcher do middleware pula qualquer
+      caminho terminado em <code>.svg/.png/.jpg/.webp</code>, inclusive sob
+      <code>/api</code>. Hoje não é explorável porque todo handler revalida a
+      sessão.</td>
+    </tr>
+  </table>
+
+  <h3>Categoria 3 · IDOR</h3>
+  <p>Nenhum achado. Os 28 handlers de rota (tabela completa no documento de
+  achados) verificam posse dentro do <code>where</code> em todos os casos.</p>
+
+  <h3>Categoria 4 · Chaves expostas</h3>
+  <table>
+    <tr><th style="width:90px;">Severidade</th><th style="width:220px;">Arquivo:linha</th><th>Descrição</th></tr>
+    <tr>
+      <td><span class="chip chip-baixa">Baixa</span></td>
+      <td class="arquivo">docs/acompanhamento/3.0-arrumacao-e-dados.md:75<br>docs/acompanhamento/3.1-painel.md:311<br>docs/acompanhamento/4.1-conectar-banco.md:53,57,60,64<br>docs/acompanhamento/4.2c-dia-contra-dia.md:47,58<br>docs/superpowers/specs/2026-10-05-dados-pluggy-design.md:11,144<br>docs/superpowers/plans/2026-10-05-tarefa-4.2a-dados-pluggy.md:360</td>
+      <td><strong>A-04</strong> — Dados financeiros reais do dono (banco,
+      final de cartão, nome comercial e valores) em documentos de
+      acompanhamento de um repositório que vai ficar público, inclusive no
+      histórico do git.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-informativa">Informativa</span></td>
+      <td class="arquivo">.github/workflows/conectores.yml:19,20,33<br>.github/workflows/seguranca.yml:18,24,32,33</td>
+      <td><strong>A-05</strong> — Actions do GitHub fixadas por tag, não por
+      SHA. <code>conectores.yml</code> roda com <code>contents: write</code> e
+      <code>pull-requests: write</code> e tem os segredos do Pluggy no mesmo
+      job: risco de cadeia de suprimento.</td>
+    </tr>
+  </table>
+
+  <h3>Categoria 5 · Inputs sem tratamento (XSS)</h3>
+  <table>
+    <tr><th style="width:90px;">Severidade</th><th style="width:220px;">Arquivo:linha</th><th>Descrição</th></tr>
+    <tr>
+      <td><span class="chip chip-baixa">Baixa</span></td>
+      <td class="arquivo">next.config.ts:11</td>
+      <td><strong>A-06</strong> — CSP com <code>script-src 'self' 'unsafe-inline'</code>.
+      Defesa em profundidade ausente: se um ponto de injeção de HTML aparecer
+      no futuro, a CSP não segura <code>&lt;script&gt;</code> inline. Hoje não
+      há ponto de injeção, então não é explorável sozinho.</td>
+    </tr>
+  </table>
+
+  <h3>Categorias extras do projeto (login, sessão, IA, erro)</h3>
+  <table>
+    <tr><th style="width:90px;">Severidade</th><th style="width:220px;">Arquivo:linha</th><th>Descrição</th></tr>
+    <tr>
+      <td><span class="chip chip-media">Média</span></td>
+      <td class="arquivo">src/app/api/auth/login/route.ts:10-13,28,49,52<br>src/lib/auth.ts:20-47</td>
+      <td><strong>A-07</strong> — Limite de tentativas do login pode ser
+      contornado: o IP vem de <code>X-Forwarded-For</code> (forjável fora da
+      Vercel), a checagem do bloqueio e a gravação da falha não são atômicas
+      (corrida), e não há teto global.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-baixa">Baixa</span></td>
+      <td class="arquivo">src/lib/session.ts:10<br>src/app/api/auth/logout/route.ts:4-8</td>
+      <td><strong>A-08</strong> — Sessão sem revogação no servidor: o token
+      não tem estado no servidor (válido por 7 dias) e o logout só apaga o
+      cookie local. Um cookie copiado continua válido mesmo após logout ou
+      troca de senha.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-media">Média</span></td>
+      <td class="arquivo">src/lib/pdf-cliente.ts:56-75<br>src/components/Importar.tsx:59,73<br>src/lib/extracao.ts:43-60,84,98-101<br>src/app/api/import/trecho/route.ts:33</td>
+      <td><strong>A-09</strong> — O texto bruto do PDF vai ao OpenRouter sem
+      passar por <code>ia.ts</code> nem por filtro de dado pessoal. O
+      cabeçalho de uma fatura de cartão costuma trazer nome do titular,
+      endereço, limite total/disponível e às vezes CPF parcial — tudo isso sai
+      a cada importação.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-media">Média</span></td>
+      <td class="arquivo">src/env.ts:47<br>src/app/(app)/ajustes/page.tsx:16,91<br>src/lib/openrouter.ts:73-104,170-213<br>src/lib/pluggy/categorizar-repo.ts:62-67<br>src/app/api/diagnostico/route.ts:29,40<br>src/app/api/resumo/route.ts:23,33<br>src/app/api/import/trecho/route.ts:12,22</td>
+      <td><strong>A-10</strong> — <code>AI_BUDGET_USD_MONTH</code> e
+      <code>user_setting.teto_ia_usd</code> só servem para exibir a barra em
+      Ajustes; nenhuma chamada de modelo confere o gasto antes de rodar, nem
+      as automáticas (categorização do sync). Não há limite de taxa em
+      nenhuma rota de IA.</td>
+    </tr>
+    <tr>
+      <td><span class="chip chip-informativa">Informativa</span></td>
+      <td class="arquivo">src/app/api/import/comitar/route.ts:27<br>src/app/api/import/trecho/route.ts:17</td>
+      <td><strong>A-11</strong> — <code>import/comitar</code> e
+      <code>import/trecho</code> leem o corpo (<code>corpoJson</code>) fora do
+      <code>comUsuario</code>: JSON inválido vira 500 genérico em vez de 400, e
+      o corpo é processado antes de autenticar.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ======================= RECOMENDAÇÕES ======================= -->
+<section class="secao recomendacoes">
+  <h2>Recomendações priorizadas</h2>
+
+  <h3><span class="prioridade-tag p1">P1</span> Antes de tornar o repositório público e antes da fatia 5</h3>
+  <ol>
+    <li><strong>A-09</strong> — Tirar o cabeçalho e os dados pessoais do texto
+    antes de mandar ao modelo, e levar o prompt de extração para
+    <code>ia.ts</code>: mascarar no navegador ou na rota (CPF/CNPJ, sequências
+    longas de dígitos, linhas com "limite"/"disponível"/"saldo"/"endereço"/
+    "CEP"/o nome do titular), e um teste em <code>scripts/testes.ts</code> com
+    um cabeçalho de fatura fictício.</li>
+    <li><strong>A-10</strong> — Aplicar o teto: uma função
+    <code>podeGastar(userId)</code> lida antes de
+    <code>pedirJson</code>/<code>pedirTextoEmStream</code>. Bloqueia as
+    chamadas automáticas (categorização no sync e no cron) quando passar do
+    teto; nas de botão, deixa passar com aviso, como o plano técnico pede.
+    Somar um limite simples por minuto por usuário nas rotas de IA.</li>
+    <li><strong>A-04</strong> — Trocar os finais de cartão e valores reais em
+    <code>docs/</code> por fictícios e reescrever o histórico (ou abrir o
+    repositório público a partir de um histórico limpo).</li>
+    <li><strong>A-02</strong> — Na fatia 5: tornar <code>CRON_SECRET</code> e
+    <code>PLUGGY_WEBHOOK_SECRET</code> obrigatórios (≥ 32 caracteres) quando as
+    rotas existirem; comparar em tempo constante; recusar quando a variável
+    estiver vazia; guardar o id do evento do webhook para ignorar repetidos.</li>
+  </ol>
+
+  <h3><span class="prioridade-tag p2">P2</span> Próxima tarefa de segurança</h3>
+  <ol start="5">
+    <li><strong>A-07</strong> — Pegar o IP de uma fonte confiável (na Vercel, o
+    cabeçalho da plataforma; fora dela, configurável e desligado por padrão);
+    gravar a falha <strong>antes</strong> do scrypt (ou reservar a tentativa
+    com <code>update … returning</code> atômico); somar um teto global por
+    minuto, independente do IP.</li>
+    <li><strong>A-01</strong> — Checagem de origem no middleware para métodos
+    que mudam estado (<code>Origin</code> igual ao host, ou
+    <code>Sec-Fetch-Site: same-origin</code>), e/ou exigir
+    <code>content-type: application/json</code> em <code>corpoJson</code>.</li>
+    <li><strong>A-08</strong> — Um contador <code>sessao_versao</code> em
+    <code>app_user</code>, incluído no token e conferido em
+    <code>usuarioAtual</code>; o logout e a troca de senha o incrementam.</li>
+  </ol>
+
+  <h3><span class="prioridade-tag p3">P3</span> Higiene</h3>
+  <ol start="8">
+    <li><strong>A-06</strong> — CSP com nonce por requisição (middleware) e
+    sem <code>'unsafe-inline'</code> em <code>script-src</code>.</li>
+    <li><strong>A-05</strong> — Fixar as actions por SHA (com Dependabot para
+    atualizar).</li>
+    <li><strong>A-03 / A-11</strong> — Tirar o filtro por extensão do matcher
+    da área <code>/api</code> (ou listar só as pastas de estáticos), e mover o
+    <code>corpoJson</code> das duas rotas de importação para dentro do
+    <code>comUsuario</code>.</li>
+  </ol>
+</section>
+
+<!-- ======================= ISSUES PARA O GITHUB ======================= -->
+<section class="secao">
+  <h2>ISSUES PARA O GITHUB</h2>
+  <p>Texto completo de cada issue, em Markdown, pronto para copiar e colar.</p>
+
+  <div class="issue-marcador">--- ISSUE 1 ---</div>
+<pre>**Título:** [Segurança] Texto bruto da fatura em PDF vai ao OpenRouter com nome, limite e dados do titular
+
+**Labels:** security, severidade:média
+
+**Descrição**
+A importação de PDF manda o texto inteiro de cada pedaço da fatura ao modelo,
+sem filtro e fora de `src/lib/ia.ts`. O cabeçalho de fatura de cartão costuma
+trazer nome do titular, endereço, limite total e disponível e, às vezes, CPF
+parcial e linha digitável. Isso fere a regra 4 do `CLAUDE.md` (tudo que vai
+para a IA passa por `ia.ts`, sem saldo, limite, CPF ou nome de titular) e sai
+da infraestrutura a cada importação.
+
+**Evidência**
+- `src/components/Importar.tsx:59,73` — `pedacos(texto)` → `POST /api/import/trecho { trecho }`
+- `src/lib/extracao.ts:98-101` — `Texto da fatura: """${trecho}"""`
+- `src/app/api/import/trecho/route.ts:33` — `pedirJson(promptExtracao(trecho, …))`
+- `src/lib/extracao.ts:84` — o próprio prompt manda ignorar "limites, saldos", ou seja, eles estão no texto.
+
+**Impacto**
+Dado pessoal e financeiro (identidade, endereço, limite de crédito) entregue a
+terceiros (OpenRouter e o provedor que ele escolher) a cada fatura importada.
+
+**Correção sugerida**
+- Mover `promptExtracao` para `ia.ts` (ou fazer `ia.ts` ser o único a montar o texto final).
+- Antes de mandar: aplicar `semDocumentos` e um filtro de cabeçalho que tire
+  linhas com nome do titular, endereço/CEP, "limite", "disponível", "saldo",
+  linha digitável/código de barras e sequências longas de dígitos; de
+  preferência no navegador, para o dado nem chegar ao servidor.
+- Para o cabeçalho (banco, final, vencimento, total), considerar extrair por
+  regex local e mandar à IA só as linhas de lançamento.
+
+**Critérios de aceite**
+- [ ] Nenhum caminho chama `pedirJson`/`pedirTextoEmStream` com texto que não foi montado em `ia.ts`.
+- [ ] Teste em `scripts/testes.ts` com cabeçalho fictício (nome, CPF, endereço, limite) prova que nenhum desses valores aparece no prompt.
+- [ ] A importação de uma fatura real continua lendo banco, final, vencimento, total e lançamentos.
+- [ ] `npm run typecheck && npm test && npm run build` passam.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 1 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 2 ---</div>
+<pre>**Título:** [Segurança] Teto mensal de IA não é aplicado e rotas de IA não têm limite de taxa
+
+**Labels:** security, severidade:média
+
+**Descrição**
+`AI_BUDGET_USD_MONTH` e `user_setting.teto_ia_usd` só servem para exibir a
+barra em Ajustes ("Passou do teto deste mês. Nada foi bloqueado."). Nenhuma
+chamada confere o gasto antes de chamar o modelo, nem as automáticas
+(categorização no sync), ao contrário do que diz `docs/plano-tecnico.md:384`.
+Não há limite por tempo em nenhuma rota de IA, e `forcar: true` fura o cache.
+
+**Evidência**
+- `src/env.ts:47`; `src/app/(app)/ajustes/page.tsx:16,91`
+- `src/lib/openrouter.ts:73-104,170-213` — sem consulta de gasto
+- `src/lib/pluggy/categorizar-repo.ts:62-67` — lotes em paralelo, sem teto
+- `src/app/api/diagnostico/route.ts:29,40`, `src/app/api/resumo/route.ts:23,33` — `forcar`
+- `src/app/api/import/trecho/route.ts:12,22,33` — até 20 mil caracteres por chamada, sem limite de chamadas
+
+**Impacto**
+Uma sessão roubada (vale 7 dias) ou um laço no cliente esgota o crédito da
+chave do OpenRouter. Com o cron da fatia 5, a categorização roda sem
+supervisão e sem teto.
+
+**Correção sugerida**
+- `podeGastar(userId, tipo)` em `ia-uso-repo.ts`, chamada antes de cada chamada de modelo: bloqueia as automáticas acima do teto (`teto_ia_usd ?? AI_BUDGET_USD_MONTH`; 0 = sem teto) e deixa as de botão passarem com aviso.
+- Limite por usuário por minuto nas rotas de IA (ex.: contagem em `ai_uso` nos últimos 60 s, ou tabela própria), respondendo 429 com `Retry-After`.
+- Opcional: lista de modelos permitidos, ou teto de preço por modelo.
+
+**Critérios de aceite**
+- [ ] Acima do teto, `categorizarPendentes` não chama o modelo e o sync informa "sem categoria" com aviso.
+- [ ] Acima do teto, as rotas de botão respondem com aviso visível (ou passam, conforme o plano técnico) e o comportamento está coberto por teste.
+- [ ] Mais de N chamadas de IA por minuto do mesmo usuário recebem 429.
+- [ ] Teste puro em `scripts/testes.ts` para a decisão de teto (0 = sem teto, abaixo, acima).</pre>
+  <div class="issue-marcador">--- FIM ISSUE 2 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 3 ---</div>
+<pre>**Título:** [Segurança] Limite de tentativas do login contornável por X-Forwarded-For forjado e por pedidos paralelos
+
+**Labels:** security, severidade:média
+
+**Descrição**
+O IP do limite vem do primeiro valor de `X-Forwarded-For`, controlado pelo
+cliente fora da Vercel. Além disso, o bloqueio é lido antes do scrypt e a falha
+só é gravada depois, então pedidos paralelos passam todos pela checagem. Não há
+teto global.
+
+**Evidência**
+- `src/app/api/auth/login/route.ts:10-13` — `xff?.split(',')[0]`
+- `src/app/api/auth/login/route.ts:28,49,52` — checa, scrypt, registra (não atômico)
+- `src/lib/auth.ts:20-47` — estado só por IP
+
+**Impacto**
+Em auto-hospedagem sem proxy que reescreva o cabeçalho: tentativas ilimitadas.
+Em qualquer hospedagem: N tentativas por rajada a cada 15 min por IP. A senha é
+a única barreira do app.
+
+**Correção sugerida**
+- IP de fonte confiável: na Vercel, o cabeçalho da plataforma; fora dela, uma variável (`CONFIAR_PROXY`) que, desligada, usa o IP do socket.
+- Reservar a tentativa antes do scrypt: `insert … on conflict do update set tentativas = tentativas + 1 returning tentativas, bloqueado_ate`, decidindo pelo valor devolvido, e zerar no sucesso.
+- Teto global (ex.: 30 falhas/min no total) que liga a espera para todos.
+
+**Critérios de aceite**
+- [ ] `X-Forwarded-For` diferente a cada pedido não reinicia a contagem quando o proxy não é confiável.
+- [ ] 50 pedidos paralelos com senha errada resultam em no máximo 3 conferências de scrypt antes do bloqueio.
+- [ ] Teste puro da função de espera e da escolha de IP em `scripts/testes.ts`.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 3 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 4 ---</div>
+<pre>**Título:** [Segurança] Rotas POST aceitam pedido simples sem checar Origin (CSRF de mesmo site)
+
+**Labels:** security, severidade:baixa
+
+**Descrição**
+`corpoJson` aceita qualquer `content-type`, e nem o middleware nem as rotas
+conferem `Origin`/`Sec-Fetch-Site`. O cookie `SameSite=Lax` barra outros sites,
+mas não um atacante no mesmo site (outro subdomínio do mesmo domínio). Um
+formulário `text/plain` consegue gravar lançamentos (`/api/import/comitar`),
+disparar sync e gastar IA.
+
+**Evidência**
+- `src/lib/rota.ts:41-47` — `req.json()` sem olhar `content-type`
+- `src/middleware.ts:14-46` — sem checagem de origem
+- `src/app/api/dados/apagar/route.ts:12-14` — única rota que exige JSON
+- `src/app/api/auth/login/route.ts:74` — `sameSite: 'lax'`
+
+**Impacto**
+Dados falsos no painel, sync e gasto de IA disparados por terceiros. Só com
+atacante no mesmo site (não se aplica em `*.vercel.app`).
+
+**Correção sugerida**
+- No middleware, para POST/PUT/PATCH/DELETE em `/api/` (exceto cron/webhook): recusar com 403 quando `Origin` existir e for diferente do host, ou quando `Sec-Fetch-Site` for `cross-site`/`same-site`.
+- Em `corpoJson`, exigir `application/json` (415).
+
+**Critérios de aceite**
+- [ ] POST com `Origin: https://outro.exemplo.com` recebe 403.
+- [ ] POST com `content-type: text/plain` recebe 415.
+- [ ] O fluxo normal da tela (fetch same-origin com JSON) segue funcionando.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 4 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 5 ---</div>
+<pre>**Título:** [Segurança] Sessão não pode ser revogada: logout e troca de senha não invalidam o cookie
+
+**Labels:** security, severidade:baixa
+
+**Descrição**
+O token só carrega `sub` e `exp` (7 dias) e não há estado no servidor. O
+logout apaga o cookie só no navegador onde foi clicado. Um cookie copiado
+continua válido até expirar, mesmo depois de trocar a senha.
+
+**Evidência**
+- `src/lib/session.ts:10,35-41`
+- `src/app/api/auth/logout/route.ts:4-8`
+
+**Impacto**
+Uma sessão vazada dá 7 dias de acesso a todos os dados e às ações (inclusive
+"apagar tudo" e gasto de IA).
+
+**Correção sugerida**
+- Coluna `sessao_versao` em `app_user` (migração nova), incluída no token e conferida em `usuarioAtual`/middleware.
+- O logout incrementa a versão (ou oferece "sair de todos os dispositivos"). A troca de `APP_PASSWORD_HASH` também invalida (ex.: guardar o hash dele junto da versão).
+- Documentar no README que trocar o `SESSION_SECRET` derruba todas as sessões.
+
+**Critérios de aceite**
+- [ ] Depois do logout, o cookie antigo reaproveitado recebe 401.
+- [ ] Teste puro de `verificar` com versão divergente.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 5 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 6 ---</div>
+<pre>**Título:** [Segurança] Tirar dados reais de cartão (finais, valores) de docs/ antes de publicar o repositório
+
+**Labels:** security, severidade:baixa
+
+**Descrição**
+Os documentos de acompanhamento e as specs citam banco, final de cartão, nome
+comercial e valores reais do dono. Com o repositório público, isso fica
+exposto, inclusive no histórico.
+
+**Evidência**
+- `docs/acompanhamento/3.0-arrumacao-e-dados.md:75`, `docs/acompanhamento/3.1-painel.md:311`
+- `docs/acompanhamento/4.1-conectar-banco.md:53,57,60,64`
+- `docs/acompanhamento/4.2c-dia-contra-dia.md:47,58`
+- `docs/superpowers/specs/2026-10-05-dados-pluggy-design.md:11,144`
+- `docs/superpowers/plans/2026-10-05-tarefa-4.2a-dados-pluggy.md:360`
+
+**Impacto**
+Material para engenharia social com o banco (banco + final + produto + valores
+e datas recentes).
+
+**Correção sugerida**
+- Trocar por fictícios (••1234, valores redondos) e combinar uma convenção para os próximos docs.
+- Publicar a partir de um histórico limpo (`git filter-repo` com substituição dessas strings, ou um repositório novo com squash).
+- Opcional: regra customizada no gitleaks para os finais reais.
+
+**Critérios de aceite**
+- [ ] `git log -p --all | grep -E "<finais reais>"` não devolve nada no repositório publicado.
+- [ ] Convenção registrada no `docs/acompanhamento/README.md`.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 6 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 7 ---</div>
+<pre>**Título:** [Segurança] Pré-requisitos de /api/cron e /api/webhook para a fatia 5 (segredo obrigatório, comparação constante, anti-replay)
+
+**Labels:** security, severidade:informativa
+
+**Descrição**
+As rotas ainda não existem, mas o middleware já libera os dois prefixos sem
+sessão, `vercel.json` já agenda `/api/cron/sync` e os segredos são opcionais em
+`env.ts`. Qualquer rota criada lá nasce pública, e uma comparação ingênua com
+variável ausente aceita `Bearer undefined`.
+
+**Evidência**
+- `src/middleware.ts:11-12,18`
+- `src/env.ts:43,48` — `PLUGGY_WEBHOOK_SECRET`, `CRON_SECRET` opcionais
+- `vercel.json:3-5`
+
+**Impacto**
+Sem a correção junto da fatia 5: sync e gasto de IA disparados por qualquer um,
+e webhook forjado ou repetido.
+
+**Correção sugerida**
+- `env.ts`: tornar os dois obrigatórios (≥ 32 caracteres, sem placeholder) assim que as rotas existirem.
+- Helper `exigirSegredo(req, segredo)` com `timingSafeEqual` que recusa quando o segredo está vazio.
+- Webhook: validar a assinatura do Pluggy e gravar o id do evento (`unique`) para ignorar repetidos; a rota não deve confiar no corpo para ids de item, e sim relê-los no Pluggy.
+- Teto de IA (Issue 2) antes de qualquer cron que categorize.
+
+**Critérios de aceite**
+- [ ] Boot falha sem `CRON_SECRET` quando `/api/cron/*` existir.
+- [ ] Pedido sem cabeçalho, ou com `Bearer undefined`, recebe 401.
+- [ ] O mesmo evento de webhook entregue duas vezes é processado uma vez (teste).</pre>
+  <div class="issue-marcador">--- FIM ISSUE 7 ---</div>
+
+  <div class="issue-marcador">--- ISSUE 8 ---</div>
+<pre>**Título:** [Segurança] Endurecimento: CSP sem 'unsafe-inline', actions por SHA, matcher do middleware e corpo dentro do comUsuario
+
+**Labels:** security, severidade:baixa
+
+**Descrição**
+Quatro ajustes de defesa em profundidade, nenhum explorável hoje sozinho:
+1. `script-src 'unsafe-inline'` anula a CSP contra XSS se um ponto de injeção aparecer.
+2. Actions do GitHub fixadas por tag (móvel); `conectores.yml` tem permissão de escrita e os segredos do Pluggy.
+3. O matcher do middleware pula qualquer caminho terminado em `.svg/.png/.jpg/.webp`, inclusive em `/api`.
+4. `import/comitar` e `import/trecho` leem o corpo antes do `comUsuario`: JSON inválido vira 500, e o corpo é processado antes de autenticar.
+
+**Evidência**
+- `next.config.ts:11`
+- `.github/workflows/conectores.yml:19,20,33`; `.github/workflows/seguranca.yml:18,24,32,33`
+- `src/middleware.ts:49`
+- `src/app/api/import/comitar/route.ts:27`; `src/app/api/import/trecho/route.ts:17`
+
+**Impacto**
+Reduz o raio de um erro futuro (XSS, rota nova que confie só no middleware) e
+o risco de cadeia de suprimento no CI.
+
+**Correção sugerida**
+- Nonce por requisição gerado no middleware e passado à CSP (`'nonce-…' 'strict-dynamic'`), sem `'unsafe-inline'` em `script-src`.
+- `uses: owner/action@<sha> # vX` e Dependabot para `github-actions`.
+- Matcher que exclua só `_next/static`, `_next/image`, `favicon.ico` e as pastas de estáticos, nunca `/api/*`.
+- Mover o `corpoJson` para dentro do callback do `comUsuario` nas duas rotas.
+
+**Critérios de aceite**
+- [ ] Cabeçalho CSP de produção sem `'unsafe-inline'` em `script-src` e app funcionando (login, importação, widget do Pluggy).
+- [ ] Todas as actions referenciadas por SHA.
+- [ ] `GET /api/txn/x.png` sem cookie recebe 401 do middleware.
+- [ ] `POST /api/import/trecho` com corpo inválido recebe 400 `json_invalido`.</pre>
+  <div class="issue-marcador">--- FIM ISSUE 8 ---</div>
+
+  <div class="rodape-doc">
+    Relatório gerado a partir de <code>docs/security-audit/achados-2026-10-06.md</code>
+    (tarefa 4.3, branch <code>tarefa-4.3-auditoria</code>). Fora da cobertura
+    desta auditoria: testes dinâmicos, banco em produção, painel Vercel/Pluggy,
+    <code>npm audit</code> e imagens em <code>docs/legado/telas/*.png</code>.
+  </div>
+</section>
+
+</body>
+</html>

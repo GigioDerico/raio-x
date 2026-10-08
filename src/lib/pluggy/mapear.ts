@@ -1,0 +1,311 @@
+/**
+ * Pluggy → modelo do app. Puro, sem `server-only`: o teste importa direto.
+ *
+ * Os tipos de entrada listam só o que é lido. O que o Pluggy entrega e o app
+ * não pode guardar — nome e CPF do titular, dados do pagador, CNPJ do
+ * estabelecimento — não aparece em nenhum tipo de saída (regra 5 do CLAUDE.md).
+ * O saldo da conta corrente pode ser guardado (plano técnico, `account.saldo`);
+ * quem o grava é `gravarConexao`, direto do `balance`.
+ */
+import { normalizarDescricao } from '../descricao';
+
+export type ConectorPluggy = {
+  id: number;
+  name: string;
+  primaryColor?: string | null;
+  imageUrl?: string | null;
+  health?: { status?: string | null } | null;
+};
+
+export type ItemPluggy = {
+  id: string;
+  status: string;
+  clientUserId?: string | null;
+  connector?: ConectorPluggy | null;
+  error?: { code?: string | null; message?: string | null } | null;
+  consentExpiresAt?: string | null;
+};
+
+export type ContaPluggy = {
+  id: string;
+  type: string;
+  subtype?: string | null;
+  number?: string | null;
+  name?: string | null;
+  marketingName?: string | null;
+  balance?: number | null;
+  owner?: string | null;
+  taxNumber?: string | null;
+  creditData?: { creditLimit?: number | null } | null;
+};
+
+export type TransacaoPluggy = {
+  id?: string;
+  description?: string | null;
+  descriptionRaw?: string | null;
+  amount?: number;
+  date?: string;
+  status?: string;
+  type?: string;
+  operationType?: string | null;
+  category?: string | null;
+  creditCardMetadata?: {
+    installmentNumber?: number | null;
+    totalInstallments?: number | null;
+    purchaseDate?: string | null;
+    billId?: string | null;
+  } | null;
+  paymentData?: unknown;
+  merchant?: unknown;
+};
+
+export type FaturaPluggy = { id: string; dueDate: string; billClosingDate?: string | null; totalAmount: number };
+
+export type StatusConexao = 'ativa' | 'atualizando' | 'erro_login' | 'erro';
+export type KindConta = 'cartao_credito' | 'conta_corrente' | 'conta_pagamento' | 'poupanca';
+
+export type ContaMapeada = {
+  pluggyAccountId: string;
+  kind: KindConta;
+  last4: string | null;
+  nomeOrigem: string | null;
+  limite: number | null;
+};
+
+export type Recebido = {
+  pluggyTxnId: string;
+  data: string;
+  // a parcela traz em `data` a compra original; só a data do lançamento diz em que fatura ela cai
+  dataLancamento: string;
+  valor: number;
+  descOrigem: string;
+  descNorm: string;
+  tipo: 'pagamento' | 'parcela' | 'encargo' | 'escolha';
+  parcela: { n: number; total: number } | null;
+  billId: string | null;
+  pendente: boolean;
+};
+
+export type FaturaMapeada = { pluggyBillId: string; mesRef: string; vencimento: string; fechamento: string | null; total: number };
+
+export type ContaExistente = { id: string; kind: string; last4: string | null; pluggyAccountId: string | null };
+
+export function statusDoItem(status: string): StatusConexao {
+  if (status === 'UPDATED') return 'ativa';
+  if (status === 'UPDATING') return 'atualizando';
+  if (status === 'LOGIN_ERROR' || status === 'WAITING_USER_INPUT') return 'erro_login';
+  return 'erro';
+}
+
+export function contaDoPluggy(c: ContaPluggy): ContaMapeada {
+  const kind: KindConta =
+    c.type === 'CREDIT' || c.subtype === 'CREDIT_CARD'
+      ? 'cartao_credito'
+      : c.subtype === 'CHECKING_ACCOUNT'
+        ? 'conta_corrente'
+        : c.subtype === 'SAVINGS_ACCOUNT'
+          ? 'poupanca'
+          : 'conta_pagamento';
+  const digitos = String(c.number ?? '').replace(/\D/g, '');
+  return {
+    pluggyAccountId: c.id,
+    kind,
+    last4: digitos ? digitos.slice(-4) : null,
+    nomeOrigem: c.marketingName || c.name || null,
+    limite: typeof c.creditData?.creditLimit === 'number' ? c.creditData.creditLimit : null,
+  };
+}
+
+const diaSP = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+// o Pluggy manda `date` em UTC; o mês da compra é decidido no fuso de quem gastou.
+// Meia-noite UTC em ponto é data de calendário sem hora (a documentação traz
+// "2020-06-08T00:00:00.000Z"): converter jogaria a compra para o dia anterior
+function diaEmSaoPaulo(iso: string | undefined): string | null {
+  if (!iso) return null;
+  if (/T00:00:00(\.0+)?Z$/.test(iso)) return iso.slice(0, 10);
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : diaSP.format(d);
+}
+
+function diaValido(d: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+}
+
+const ENCARGO = /\b(IOF|JUROS|MORA|MULTA|ANUIDADE|ENCARGOS?)\b/i;
+
+export function lancamentoDoPluggy(t: TransacaoPluggy): Recebido | null {
+  if (!t.id || typeof t.amount !== 'number' || !Number.isFinite(t.amount)) return null;
+  const meta = t.creditCardMetadata ?? null;
+  // o PDF registra a data da compra; usar a mesma é o que faz a chave natural colidir
+  const data = meta?.purchaseDate ? meta.purchaseDate.slice(0, 10) : diaEmSaoPaulo(t.date);
+  if (!data || !diaValido(data)) return null;
+  const descOrigem = (t.descriptionRaw || t.description || '').trim();
+  const parcela =
+    meta?.installmentNumber && meta.totalInstallments && meta.totalInstallments > 1
+      ? { n: meta.installmentNumber, total: meta.totalInstallments }
+      : null;
+  const valor = Math.round(t.amount * 100) / 100;
+  // no sandbox real (MeuPluggy/Itaú) só "Pagamento recebido" veio com operationType; "PAGAMENTO
+  // COM SALDO" e "PAGAMENTO DEBITO AUTOMATICO" chegaram como compra negativa e derrubavam os totais
+  const pagamento =
+    t.operationType === 'PAGAMENTO_FATURA' ||
+    t.description === 'PAGAMENTO_FATURA' ||
+    (valor < 0 && (t.category === 'Credit card payment' || /^pagamento\b/i.test(descOrigem)));
+  // juros, IOF e afins são encargo, como na extração do PDF — o painel os separa do gasto escolhido
+  const encargo = valor > 0 && ENCARGO.test(descOrigem);
+  const lancado = diaEmSaoPaulo(t.date);
+  return {
+    pluggyTxnId: t.id,
+    data,
+    dataLancamento: lancado && diaValido(lancado) ? lancado : data,
+    valor,
+    descOrigem,
+    descNorm: normalizarDescricao(descOrigem),
+    tipo: pagamento ? 'pagamento' : encargo ? 'encargo' : parcela ? 'parcela' : 'escolha',
+    parcela,
+    billId: meta?.billId ?? null,
+    pendente: t.status === 'PENDING',
+  };
+}
+
+export function faturaDaBill(b: FaturaPluggy): FaturaMapeada {
+  // vencimento e fechamento são datas de calendário: o dia vem do texto, sem conversão de fuso
+  const vencimento = b.dueDate.slice(0, 10);
+  return {
+    pluggyBillId: b.id,
+    mesRef: vencimento.slice(0, 7),
+    vencimento,
+    fechamento: b.billClosingDate ? b.billClosingDate.slice(0, 10) : null,
+    total: b.totalAmount,
+  };
+}
+
+/**
+ * A `dedupe_key` inclui o `account_id`: se o cartão do Pluggy virasse conta
+ * nova, nenhuma compra colidiria com o PDF e tudo entraria em dobro.
+ *
+ * O índice `account_chave (user_id, kind, coalesce(last4, institution_id))`
+ * só admite um cartão por last4 por pessoa, então criar outro com o mesmo
+ * last4 estouraria. E reconectar o banco gera um item novo, com
+ * `pluggyAccountId` novo: o cartão com esse last4 é religado mesmo que já
+ * esteja ligado a outro id do Pluggy, senão a reconexão travaria.
+ */
+export function casarConta(existentes: readonly ContaExistente[], c: ContaMapeada): { usar: string } | { criar: true } {
+  const jaLigada = existentes.find((e) => e.pluggyAccountId === c.pluggyAccountId);
+  if (jaLigada) return { usar: jaLigada.id };
+  if (c.kind !== 'cartao_credito' || !c.last4) return { criar: true };
+  const candidatas = existentes.filter((e) => e.kind === 'cartao_credito' && e.last4 === c.last4);
+  // mais de uma não acontece com o índice; sem ele, não há como escolher
+  return candidatas.length === 1 ? { usar: candidatas[0]!.id } : { criar: true };
+}
+
+/**
+ * "Banco Itaú S.A." e "ITAÚ" viram "itau": é o que deixa o cartão do PDF e o
+ * do Pluggy caírem na mesma instituição. "Nu Pagamentos" × "Nubank" não casam,
+ * e tudo bem — juntar bancos diferentes por engano seria pior.
+ */
+export function normalizarNomeBanco(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\bs\.?\s*a\.?(?=\s|$)/g, ' ')
+    .replace(/\bbanco\b/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export type InstituicaoExistente = { id: number; nome: string; pluggyConnectorId: number | null };
+export type InstituicaoNova = { slug: string; nome: string; pluggyConnectorId: number; cor: string | null; logoUrl: string | null };
+
+export function escolherInstituicao(
+  existentes: readonly InstituicaoExistente[],
+  c: ConectorPluggy,
+): { usar: number } | { criar: InstituicaoNova } {
+  const porConector = existentes.find((e) => e.pluggyConnectorId === c.id);
+  if (porConector) return { usar: porConector.id };
+  const nome = normalizarNomeBanco(c.name);
+  const porNome = existentes.find((e) => normalizarNomeBanco(e.nome) === nome);
+  if (porNome) return { usar: porNome.id };
+  return { criar: { slug: `pluggy-${c.id}`, nome: c.name, pluggyConnectorId: c.id, cor: corDoConector(c), logoUrl: c.imageUrl ?? null } };
+}
+
+// o Pluggy manda a cor sem "#"; o CSS precisa dela
+export function corDoConector(c: ConectorPluggy): string | null {
+  return c.primaryColor ? (c.primaryColor.startsWith('#') ? c.primaryColor : `#${c.primaryColor}`) : null;
+}
+
+function mesSeguinte(mes: string): string {
+  const [a, m] = mes.split('-').map(Number) as [number, number];
+  return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, '0')}`;
+}
+
+function menosDias(dia: string, n: number): string {
+  const d = new Date(`${dia}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+// um ciclo de cartão com folga: além disso a compra é de uma fatura que /bills não trouxe
+const CICLO_MAXIMO_DIAS = 35;
+
+/** O mesmo dia no mês seguinte, ou o último dia dele (31/jan → 28/fev). */
+function mesmoDiaNoMesSeguinte(dia: string): string {
+  const mes = mesSeguinte(dia.slice(0, 7));
+  const [a, m] = mes.split('-').map(Number) as [number, number];
+  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  return `${mes}-${String(Math.min(Number(dia.slice(8, 10)), ultimo)).padStart(2, '0')}`;
+}
+
+/**
+ * A fatura aberta não vem em /bills, e os lançamentos dela chegam sem billId —
+ * sem isto cairiam no mês da compra, não no mês em que se paga. Compra depois
+ * do fechamento da última fatura conhecida é da seguinte. Sem fechamento, o
+ * corte é o vencimento menos 7 dias (o intervalo comum entre os dois).
+ *
+ * Mais de um ciclo depois do corte, a lista de faturas está incompleta: sem o
+ * limite, meses de compras cairiam todos num mês só.
+ */
+export function mesDaFaturaAberta(faturas: readonly FaturaMapeada[], dataLancamento: string): { mesRef: string; vencimento: string } | null {
+  if (!faturas.length) return null;
+  const ultima = [...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento)).at(-1)!;
+  const corte = ultima.fechamento ?? menosDias(ultima.vencimento, 7);
+  if (dataLancamento <= corte || dataLancamento > menosDias(corte, -CICLO_MAXIMO_DIAS)) return null;
+  return { mesRef: mesSeguinte(ultima.mesRef), vencimento: mesmoDiaNoMesSeguinte(ultima.vencimento) };
+}
+
+/** Índice do recebido → fatura aberta em que ele cai. Quem já tem billId fica de fora. */
+export function faturasAbertasDosRecebidos(
+  faturas: readonly FaturaMapeada[],
+  recebidos: readonly Recebido[],
+): Map<number, { mesRef: string; vencimento: string }> {
+  const saida = new Map<number, { mesRef: string; vencimento: string }>();
+  recebidos.forEach((r, i) => {
+    if (r.billId) return;
+    const aberta = mesDaFaturaAberta(faturas, r.dataLancamento);
+    if (aberta) saida.set(i, aberta);
+  });
+  return saida;
+}
+
+/**
+ * Duas faturas com vencimento no mesmo mês (31/mar e 1º/mar) disputariam o mesmo
+ * mes_ref e alternariam total e vencimento a cada sync: a que vence depois vai
+ * para o mês seguinte, em cadeia.
+ */
+export function mesesDasFaturas(faturas: readonly FaturaMapeada[]): FaturaMapeada[] {
+  const ordenadas = [...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  const saida: FaturaMapeada[] = [];
+  for (const f of ordenadas) {
+    const anterior = saida.at(-1);
+    saida.push(anterior && f.mesRef <= anterior.mesRef ? { ...f, mesRef: mesSeguinte(anterior.mesRef) } : f);
+  }
+  return saida;
+}

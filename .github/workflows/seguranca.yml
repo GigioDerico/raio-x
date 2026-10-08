@@ -1,0 +1,43 @@
+name: Segurança
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # varredura semanal, segunda 06:17 UTC
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  segredos:
+    name: Varredura de segredos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # histórico inteiro: segredo commitado e apagado depois continua lá
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Typecheck, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          # o build não pode depender de segredo nenhum
+          SKIP_ENV_VALIDATION: '1'
