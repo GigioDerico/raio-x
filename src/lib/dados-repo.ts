@@ -72,7 +72,7 @@ export async function apagarTudo(userId: string): Promise<{ conexoesApagadas: nu
     db.delete(connection).where(eq(connection.userId, userId)),
     db
       .update(userSetting)
-      .set({ rendaDeclarada: null, metaPoupanca: '20', gastoForaCartao: '0', modeloIa: env.OPENROUTER_MODEL, tetoIaUsd: null })
+      .set({ rendaDeclarada: null, metaPoupanca: '20', modeloIa: env.OPENROUTER_MODEL, tetoIaUsd: null })
       .where(eq(userSetting.userId, userId)),
   ]);
   return { conexoesApagadas: conexoes.length };

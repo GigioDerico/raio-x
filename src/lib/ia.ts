@@ -296,8 +296,7 @@ export function dadosDiagnostico(ctxTela: Contexto, filtrado: boolean, plano: Pl
   const pl = planoSaudavel(ctx, pj);
   if (pl && pl.teto !== null)
     L.push(
-      'Teto saudável do cartão (renda ' + moeda(ctx.renda) + ' guardando ' + ctx.metaPoupanca + '%' +
-        (ctx.foraCartao ? ', fora do cartão ' + moeda(ctx.foraCartao) : '') + '): ' + moeda(pl.teto) +
+      'Teto saudável do cartão (renda ' + moeda(ctx.renda) + ' guardando ' + ctx.metaPoupanca + '%): ' + moeda(pl.teto) +
         ' · sobra para escolhas: ' + moeda(Math.max(0, pl.disponivel ?? 0)),
     );
   const rec = recorrentes(ctx);
