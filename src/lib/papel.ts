@@ -2,7 +2,31 @@
  * O papel de um lançamento da conta corrente quando o dono o corrige (6.1).
  * Puro, sem `server-only`: o teste importa direto.
  */
+import { normalizarDescricao } from './descricao';
 import type { Papel } from './pluggy/mapear';
+
+/**
+ * A chave da regra de papel: a descrição inteira, sem dígitos. Não as três
+ * palavras de `chaveAprendizado` — ali "PAGAMENTO DE BOLETO" ou "PIX ENVIADO CP"
+ * juntam emissores e pessoas diferentes, o que numa categoria é um palpite, mas
+ * num "não conta" some com dinheiro dos totais. Os dígitos saem porque mudam
+ * entre meses (código, data) no mesmo emissor.
+ */
+export function chavePapel(descNorm: string): string {
+  return normalizarDescricao(descNorm).replace(/[0-9]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120).trim();
+}
+
+/**
+ * O prefixo separa a regra de papel da de categoria em `learned_label`: a chave
+ * de `chaveAprendizado` nunca começa assim, então uma não pinta a outra.
+ */
+export const PREFIXO_PAPEL = 'papel:';
+
+/** A linha de `learned_label` que guarda o papel desta descrição; vazia se não há o que aprender. */
+export function chaveDaRegraDePapel(descNorm: string): string {
+  const chave = chavePapel(descNorm);
+  return chave ? PREFIXO_PAPEL + chave : '';
+}
 
 /**
  * Débito é dinheiro que sai: gasto ou não conta. Crédito é dinheiro que entra:

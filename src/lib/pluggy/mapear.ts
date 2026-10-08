@@ -493,15 +493,16 @@ export function destinoNoSync(
 ): { papel: Papel; vaiParaIA: boolean; outros: boolean } {
   const base = r.papel ?? 'gasto';
   // a regra aprendida só vale para a conta (papel definido): no cartão tudo é gasto.
-  // Renda só promove entrada; "não conta" tira gasto e entrada
+  // Renda só promove entrada; "não conta" tira gasto e entrada. Pessoa física não
+  // ensina regra (`podeAprender`), e também não a recebe: a descrição de um Pix a
+  // uma empresa pode coincidir com a de um Pix a uma pessoa
+  const regra = r.papel === undefined || r.pessoaFisica ? null : regraPapel;
   const papel: Papel =
-    r.papel === undefined
-      ? 'gasto'
-      : base === 'entrada' && regraPapel === 'renda'
-        ? 'renda'
-        : (base === 'gasto' || base === 'entrada') && regraPapel === 'fora'
-          ? 'fora'
-          : base;
+    base === 'entrada' && regra === 'renda'
+      ? 'renda'
+      : (base === 'gasto' || base === 'entrada') && regra === 'fora'
+        ? 'fora'
+        : base;
   const gasto = papel === 'gasto';
   return { papel, vaiParaIA: gasto && !r.pessoaFisica, outros: gasto && !!r.pessoaFisica };
 }

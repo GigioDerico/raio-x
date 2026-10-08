@@ -56,7 +56,7 @@ import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/
 import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuardada } from '../src/lib/conversa';
 import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
-import { blocosDeEntradas, origensDoPapel, papelAceito, regraDoPapel, textoDoPapel, type LinhaEntrada } from '../src/lib/papel';
+import { blocosDeEntradas, chaveDaRegraDePapel, chavePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, textoDoPapel, type LinhaEntrada } from '../src/lib/papel';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
 import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
 import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
@@ -886,6 +886,9 @@ async function main() {
   checar('destino: "não conta" aprendido tira gasto e entrada da conta', destinoNoSync({ papel: 'gasto' }, 'fora').papel === 'fora' && destinoNoSync({ papel: 'entrada' }, 'fora').papel === 'fora');
   checar('destino: regra aprendida não vale para o cartão (papel indefinido)', destinoNoSync({}, 'fora').papel === 'gasto' && destinoNoSync({}, 'renda').papel === 'gasto');
   checar('destino: "não conta" aprendido não vai à IA', !destinoNoSync({ papel: 'gasto' }, 'fora').vaiParaIA);
+  // a descrição de um Pix a uma empresa pode coincidir com a de um Pix a uma pessoa
+  checar('destino: pessoa física não recebe "não conta" aprendido', JSON.stringify(destinoNoSync({ papel: 'gasto', pessoaFisica: true }, 'fora')) === JSON.stringify({ papel: 'gasto', vaiParaIA: false, outros: true }));
+  checar('destino: pessoa física não recebe renda aprendida', destinoNoSync({ papel: 'entrada', pessoaFisica: true }, 'renda').papel === 'entrada' && destinoNoSync({ papel: 'entrada', pessoaFisica: true }, 'fora').papel === 'entrada');
 
   // ---- papel: marcação do dono (6.1) ---------------------------------------
   process.stdout.write('\n');
@@ -893,6 +896,15 @@ async function main() {
   checar('papel aceito: débito só gasto ou fora', papelAceito(80, 'gasto') && papelAceito(80, 'fora') && !papelAceito(80, 'renda') && !papelAceito(80, 'entrada'));
   checar('papel aceito: crédito só entrada, renda ou fora', papelAceito(-80, 'entrada') && papelAceito(-80, 'renda') && papelAceito(-80, 'fora') && !papelAceito(-80, 'gasto'));
   checar('papel aceito: valor zero não aceita nada além de fora', papelAceito(0, 'fora') && !papelAceito(0, 'gasto') && !papelAceito(0, 'entrada'));
+  checar('chave do papel: sem dígitos e com espaços colapsados', chavePapel('BOLETO  ITAU UNIBANCO 12345 ') === 'BOLETO ITAU UNIBANCO');
+  checar('chave do papel: mesmo emissor com dígitos diferentes dá a mesma chave', chavePapel('PAGAMENTO DE BOLETO ITAU UNIBANCO 0001 2026') === chavePapel('PAGAMENTO DE BOLETO ITAU UNIBANCO 9876 2027'));
+  // a chave de 3 palavras juntaria os dois emissores e tiraria todo boleto dos totais
+  checar('chave do papel: emissores diferentes dão chaves diferentes', chavePapel('PAGAMENTO DE BOLETO ITAU UNIBANCO') !== chavePapel('PAGAMENTO DE BOLETO BANCO PAN'));
+  checar('chave do papel: Pix para pessoa e para empresa não se misturam', chavePapel('PIX ENVIADO CP MARIA SILVA') !== chavePapel('PIX ENVIADO CP EMPRESA X'));
+  checar('chave do papel: no máximo 120 caracteres', chavePapel('EMPRESA X '.repeat(30)).length <= 120 && !chavePapel('EMPRESA X '.repeat(30)).endsWith(' '));
+  checar('chave do papel: só dígitos não ensina nada', chavePapel('12345 678') === '' && chaveDaRegraDePapel('12345') === '');
+  // o prefixo impede que a regra de papel e a de categoria caiam na mesma linha
+  checar('chave da regra de papel tem prefixo e nunca é chave de categoria', chaveDaRegraDePapel('PAGAMENTO DE BOLETO BANCO PAN').startsWith(PREFIXO_PAPEL) && !chaveAprendizado('papel: PAGAMENTO').startsWith(PREFIXO_PAPEL));
   checar('regra do papel: renda e fora ensinam; gasto e entrada desfazem', regraDoPapel('renda') === 'renda' && regraDoPapel('fora') === 'fora' && regraDoPapel('gasto') === null && regraDoPapel('entrada') === null);
   checar('origens: renda leva entradas; desmarcar renda devolve as renda automáticas',
     JSON.stringify(origensDoPapel('renda')) === JSON.stringify(['entrada']) && JSON.stringify(origensDoPapel('entrada')) === JSON.stringify(['renda']));

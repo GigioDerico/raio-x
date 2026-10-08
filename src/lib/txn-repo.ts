@@ -1,6 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
-import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, like, lt, lte, ne, notInArray, notLike, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   account,
@@ -18,7 +18,7 @@ import { mesPorExtenso } from './filtro';
 import { categoriaHerdada, chaveDoNome } from './nome-na-tela';
 import { planoDaParcela, tipoDoTxn } from './importacao';
 import type { LancLimpo } from './extracao';
-import { origensDoPapel, papelAceito, regraDoPapel, type LinhaEntrada } from './papel';
+import { chaveDaRegraDePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, type LinhaEntrada } from './papel';
 import type { Papel } from './pluggy/mapear';
 
 // espelho de `chaveDoNome(nomeNaTela(l))` (src/lib/nome-na-tela.ts): o nome que
@@ -455,12 +455,24 @@ export async function aprender(
     });
 }
 
+/** As regras de categoria e apelido, por `chaveAprendizado`. As de papel ficam de fora: são outra chave. */
 export async function regrasAprendidas(userId: string) {
   const linhas = await db
-    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido, papel: learnedLabel.papel })
+    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido })
     .from(learnedLabel)
-    .where(eq(learnedLabel.userId, userId));
+    .where(and(eq(learnedLabel.userId, userId), notLike(learnedLabel.descNorm, `${PREFIXO_PAPEL}%`)));
   return new Map(linhas.map((l) => [l.descNorm, l]));
+}
+
+/** As regras de papel, pela chave `papel:<descrição exata>` (`chaveDaRegraDePapel`). */
+export async function regrasDePapel(userId: string): Promise<Map<string, 'renda' | 'fora'>> {
+  const linhas = await db
+    .select({ descNorm: learnedLabel.descNorm, papel: learnedLabel.papel })
+    .from(learnedLabel)
+    .where(and(eq(learnedLabel.userId, userId), like(learnedLabel.descNorm, `${PREFIXO_PAPEL}%`), isNotNull(learnedLabel.papel)));
+  const mapa = new Map<string, 'renda' | 'fora'>();
+  for (const l of linhas) if (l.papel === 'renda' || l.papel === 'fora') mapa.set(l.descNorm, l.papel);
+  return mapa;
 }
 
 const contasCorrentes = (userId: string) =>
@@ -471,20 +483,19 @@ const sinalDoPapel = (papel: Papel) =>
   papel === 'fora' ? sql`true` : papel === 'gasto' ? gt(txn.valor, '0') : lt(txn.valor, '0');
 
 /**
- * Grava a regra de papel da origem. `null` desfaz: só atualiza (não cria uma
- * regra vazia). A categoria e o apelido da regra ficam como estão.
+ * Grava as regras de papel destas chaves numa consulta só (até 500 linhas por
+ * marcação). A linha `papel:` não tem categoria nem apelido, então `null` — voltar
+ * — a apaga em vez de deixar uma regra vazia.
  */
-async function aprenderPapel(userId: string, chave: string, regra: 'renda' | 'fora' | null) {
+async function aprenderPapel(userId: string, chaves: readonly string[], regra: 'renda' | 'fora' | null) {
+  if (chaves.length === 0) return;
   if (regra === null) {
-    await db
-      .update(learnedLabel)
-      .set({ papel: null, atualizadoEm: new Date() })
-      .where(and(eq(learnedLabel.userId, userId), eq(learnedLabel.descNorm, chave)));
+    await db.delete(learnedLabel).where(and(eq(learnedLabel.userId, userId), inArray(learnedLabel.descNorm, [...chaves])));
     return;
   }
   await db
     .insert(learnedLabel)
-    .values({ userId, descNorm: chave, papel: regra })
+    .values(chaves.map((descNorm) => ({ userId, descNorm, papel: regra })))
     .onConflictDoUpdate({
       target: [learnedLabel.userId, learnedLabel.descNorm],
       set: { papel: regra, hits: sql`${learnedLabel.hits} + 1`, atualizadoEm: new Date() },
@@ -513,16 +524,15 @@ export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
     )
     .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica });
 
-  const chaves = new Set(linhas.filter(podeAprender).map((l) => chaveAprendizado(l.descNorm)).filter(Boolean));
-  const regra = regraDoPapel(papel);
-  for (const chave of chaves) await aprenderPapel(userId, chave, regra);
+  const chaves = new Set(linhas.filter(podeAprender).map((l) => chaveDaRegraDePapel(l.descNorm)).filter(Boolean));
+  await aprenderPapel(userId, [...chaves], regraDoPapel(papel));
 
   let outros = 0;
   const origens = origensDoPapel(papel);
   if (chaves.size && origens.length) {
-    // a chave da regra (3 primeiras palavras) só existe em JS: escolhe as candidatas
-    // no banco e confere a chave aqui. Linha de pessoa física não recebe regra de
-    // outra origem que caiu na mesma chave genérica ("PIX ENVIADO ...")
+    // a chave da regra (descrição sem dígitos) só existe em JS: escolhe as candidatas
+    // no banco e confere a chave aqui. Linha de pessoa física não recebe regra,
+    // como no sync (`destinoNoSync`)
     const candidatas = await db
       .select({ id: txn.id, descNorm: txn.descNorm, valor: txn.valor })
       .from(txn)
@@ -538,7 +548,7 @@ export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
         ),
       );
     const alvo = candidatas
-      .filter((c) => chaves.has(chaveAprendizado(c.descNorm)) && papelAceito(Number(c.valor), papel))
+      .filter((c) => chaves.has(chaveDaRegraDePapel(c.descNorm)) && papelAceito(Number(c.valor), papel))
       .map((c) => c.id);
     if (alvo.length) {
       // continuam 'auto': vieram da regra, e desfazer a regra as devolve
