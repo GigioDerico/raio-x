@@ -153,17 +153,18 @@ pelo sync. Desmarcar apaga o aprendizado e devolve essas linhas `auto` para
 - mês sem créditos → aviso para trocar o mês;
 - nenhuma renda marcada ainda → dica de que marcar uma vez basta.
 
-### Ajustes
+### Ajustes (6.2)
 
 - Saem os campos "renda declarada" e "gasto fora do cartão". A meta de poupança fica.
 - As contas correntes aparecem na lista de contas, com apelido editável como os cartões.
 
 ### API
 
-- `PATCH /api/txn/[id]` aceita `papel`, com a posse no `where` (regra 2).
-- Só é aceito em lançamento de conta corrente. Débito admite `gasto` ou `fora`.
-  Crédito admite `entrada`, `renda` ou `fora`. Qualquer outro caso → `ErroDeUso`.
-- A multi-seleção usa a rota em lote que já existe.
+- `PATCH /api/txn/papel` com `{ ids, papel }` (1 a 500 ids) serve à linha e ao
+  lote, nas duas telas; a posse e o tipo de conta ficam no `where` (regra 2).
+- Só lançamento de conta corrente muda de papel. Débito admite `gasto` ou
+  `fora`; crédito admite `entrada`, `renda` ou `fora`. O que não cabe é pulado;
+  se nada coube → `ErroDeUso`.
 
 ## 3. Painel e plano
 
