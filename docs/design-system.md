@@ -88,6 +88,8 @@ do mês (`.hero-val`) é 54px/700 — a maior peça de texto do app.
 | `.aviso`, `.barra` | faixa com ação (desfazer, lote) |
 | `.lancs` | lista densa de lançamentos |
 | `.tl-nome-botao`, `.estab-resumo`, `.estab-campo` | nome do lançamento como botão (filtra pelo estabelecimento; acento só no hover), resumo do estabelecimento num `.aviso` e o campo de renomear numa `.barra` (3.9) |
+| `.alternador` | dois `button` com `aria-pressed`: o ativo em acento, o outro em `--ink-2` com hover `--surface-2`; 44px no celular (Lançamentos: Gastos · Não conta, 6.1) |
+| `button.link.tl-papel` | "não conta" / "contar" na linha de conta corrente: na meta à direita no celular (44px), embaixo da origem no desktop (6.1) |
 | `.erro` | mensagem de erro |
 | `.casca`, `.menu-lateral`, `.menu-inferior`, `.filtro-global`, `.esmaecido` | casca do app (fatia 3.0) |
 | `.faixa-conexao` | faixa no topo de todas as telas quando uma conexão precisa do dono (senha, autorização vencida ou vencendo): texto em `--ink` sobre fundo levemente tingido de `--crit`, borda `--crit` à esquerda, "Resolver" leva a Conexões (5.0) |

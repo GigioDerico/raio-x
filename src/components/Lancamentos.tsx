@@ -9,6 +9,7 @@ import AvisoDeFalha from '@/components/casca/AvisoDeFalha';
 import VazioPorFiltro from '@/components/casca/VazioPorFiltro';
 import Duplicados, { type Suspeito } from '@/components/Duplicados';
 import { buscar, ErroLocal, falhaDe, textoDoErro, type Falha } from '@/lib/falha';
+import { textoDoPapel } from '@/lib/papel';
 import type { LinkVazio } from '@/lib/vazio';
 
 export type Linha = {
@@ -29,6 +30,8 @@ export type Linha = {
   contaApelido: string | null;
   contaLast4: string | null;
   contaBanco: string;
+  papel: string;
+  contaKind: string;
 };
 
 const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -87,6 +90,9 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
   // o estabelecimento clicado: a lista mostra só ele, com o total de todos os meses
   const [estab, setEstab] = useState<string | null>(null);
   const [totalTodos, setTotalTodos] = useState<number | null>(null);
+  // a aba "Não conta" mostra os débitos fora dos totais; N vem com cada carga
+  const [aba, setAba] = useState<'gasto' | 'fora'>('gasto');
+  const [naoConta, setNaoConta] = useState(0);
   const [renomeando, setRenomeando] = useState(false);
   const [novoNome, setNovoNome] = useState('');
   const [nomes, setNomes] = useState<string[]>([]);
@@ -94,7 +100,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
   const idNomes = useId();
 
   const chaveContas = contas.join(',');
-  const chaveAtual = `${mes ?? ''}|${chaveContas}|${categoria}|${busca.trim()}|${estab ?? ''}`;
+  const chaveAtual = `${mes ?? ''}|${chaveContas}|${categoria}|${busca.trim()}|${estab ?? ''}|${aba}`;
   // busca a cada tecla e o refresh depois de importar disparam cargas sobrepostas;
   // só a resposta do último pedido em voo mexe em estado
   const seq = useRef(0);
@@ -103,7 +109,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
   const carregar = useCallback(
     async (manterSelecao = false) => {
       const n = ++seq.current;
-      const chave = `${mes ?? ''}|${chaveContas}|${categoria}|${busca.trim()}|${estab ?? ''}`;
+      const chave = `${mes ?? ''}|${chaveContas}|${categoria}|${busca.trim()}|${estab ?? ''}|${aba}`;
       setCarregando(true);
       setErro(null);
       setCargaFalhou(false);
@@ -114,6 +120,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
         if (categoria) q.set('categoria', categoria);
         if (busca.trim()) q.set('busca', busca.trim());
         if (estab) q.set('nome', estab);
+        if (aba === 'fora') q.set('papel', 'fora');
         const r = await buscar(`/api/txn?${q}`);
         if (!r.ok) {
           const f = await falhaDe(r);
@@ -125,6 +132,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
         const novasLinhas = d.linhas as Linha[];
         setLinhas(novasLinhas);
         setTotalTodos(typeof d.totalTodosMeses === 'number' ? d.totalTodosMeses : null);
+        setNaoConta(typeof d.naoConta === 'number' ? d.naoConta : 0);
         setChaveDasLinhas(chave);
         setCarregouUmaVez(true);
         // ao manter, só os ids que continuam na lista — senão trocar a
@@ -158,7 +166,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
         if (n === seq.current) setCarregando(false);
       }
     },
-    [mes, chaveContas, categoria, busca, estab],
+    [mes, chaveContas, categoria, busca, estab, aba],
   );
 
   useEffect(() => {
@@ -264,6 +272,42 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
     await carregar();
   }
 
+  /** "Não conta" e "contar como gasto", na linha e no lote: uma rota só. */
+  async function marcarPapel(ids: string[], papel: 'gasto' | 'fora') {
+    let outros = 0;
+    let aprendeu = true;
+    try {
+      const r = await buscar('/api/txn/papel', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids, papel }),
+      });
+      if (!r.ok) throw await falhaDe(r);
+      const d = (await r.json()) as { outros?: unknown; aprendeu?: unknown };
+      outros = Number(d.outros) || 0;
+      aprendeu = d.aprendeu !== false;
+    } catch (e) {
+      falhou(e);
+      return;
+    }
+    setJunto(textoDoPapel(papel, outros, aprendeu));
+    await carregar();
+  }
+
+  // a seleção pode misturar cartão e conta; o papel só existe na conta corrente
+  const selecaoDeConta = linhas.filter((l) => selecao.has(l.id) && l.contaKind === 'conta_corrente').map((l) => l.id);
+
+  function trocarAba(nova: 'gasto' | 'fora') {
+    if (nova === aba) return;
+    // o estabelecimento (total de todos os meses, Renomear) e a categoria do
+    // filtro são de gasto: levados para a outra aba, a lista sairia vazia ou o
+    // total diria outra coisa. A busca é só texto e vale nas duas
+    setCategoria('');
+    setEstab(null);
+    setRenomeando(false);
+    setAba(nova);
+  }
+
   function filtrarNome(nome: string) {
     // a busca de texto filtraria de novo dentro do estabelecimento, e a categoria
     // tiraria do total do recorte o que o total de todos os meses conta
@@ -349,19 +393,30 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
           onChange={(e) => setBusca(e.target.value)}
           aria-label="Buscar"
         />
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria">
-          <option value="">Todas as categorias</option>
-          {NOMES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        {aba === 'gasto' && (
+          <select value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria">
+            <option value="">Todas as categorias</option>
+            {NOMES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={ordenacao} onChange={(e) => setOrdenacao(e.target.value as Ordenacao)} aria-label="Ordenar">
           <option value="valor">Maior valor</option>
           <option value="data">Mais recente</option>
           <option value="nome">Estabelecimento</option>
         </select>
+      </div>
+
+      <div className="alternador" role="group" aria-label="O que mostrar">
+        <button type="button" aria-pressed={aba === 'gasto'} onClick={() => trocarAba('gasto')}>
+          Gastos
+        </button>
+        <button type="button" aria-pressed={aba === 'fora'} onClick={() => trocarAba('fora')}>
+          Não conta ({naoConta})
+        </button>
       </div>
 
       {erro && <AvisoDeFalha falha={erro} />}
@@ -462,6 +517,13 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
           <button type="button" disabled={!catLote} onClick={() => void aplicarLote()}>
             Aplicar
           </button>
+          {selecaoDeConta.length > 0 && (
+            <button type="button" onClick={() => void marcarPapel(selecaoDeConta, aba === 'gasto' ? 'fora' : 'gasto')}>
+              {aba === 'gasto' ? 'Não conta' : 'Contar como gasto'}
+              {/* com cartão no meio, o número diz que só os da conta mudam */}
+              {selecaoDeConta.length < selecao.size ? ` (${selecaoDeConta.length} da conta corrente)` : ''}
+            </button>
+          )}
           <button type="button" className="link" onClick={() => setSelecao(new Set())}>
             Limpar
           </button>
@@ -487,6 +549,8 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
               Limpar busca e categoria
             </button>
           </p>
+        ) : aba === 'fora' ? (
+          <p className="suave">Nada fora dos totais em {rotuloRecorte}.</p>
         ) : (
           <VazioPorFiltro frase={vazio.frase} links={vazio.links} nivel="h2" />
         )
@@ -513,7 +577,7 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
               <span className="tl-data" aria-hidden="true">Data</span>
               <span className="tl-nome" aria-hidden="true">Estabelecimento</span>
               <span className="tl-cat" aria-hidden="true">Categoria</span>
-              <span className="tl-cartao" aria-hidden="true">Cartão</span>
+              <span className="tl-cartao" aria-hidden="true">Origem</span>
               <span className="tl-val" aria-hidden="true">Valor</span>
             </div>
             <ul className="tl-corpo">
@@ -525,7 +589,10 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
                   onAlternar={() => alternar(l.id)}
                   onMudar={(corpo) => mudar(l.id, corpo)}
                   onExcluir={() => void excluir(l)}
-                  onFiltrarNome={() => filtrarNome(nomeNaTela(l))}
+                  // o estabelecimento (total, Renomear) é de gasto: na aba "Não conta" o nome é só texto
+                  onFiltrarNome={aba === 'gasto' ? () => filtrarNome(nomeNaTela(l)) : undefined}
+                  onPapel={l.contaKind === 'conta_corrente' ? () => void marcarPapel([l.id], aba === 'gasto' ? 'fora' : 'gasto') : undefined}
+                  aba={aba}
                 />
               ))}
             </ul>
@@ -547,13 +614,17 @@ function LinhaTabela({
   onMudar,
   onExcluir,
   onFiltrarNome,
+  onPapel,
+  aba,
 }: {
   l: Linha;
   selecionado: boolean;
   onAlternar: () => void;
   onMudar: (corpo: Record<string, unknown>) => Promise<boolean>;
   onExcluir: () => void;
-  onFiltrarNome: () => void;
+  onFiltrarNome?: () => void;
+  onPapel?: () => void;
+  aba: 'gasto' | 'fora';
 }) {
   // o valor edita local até sair do campo — cada tecla não pode disparar um
   // PATCH, e a correção de valor nunca vira regra (diferente da categoria)
@@ -585,6 +656,18 @@ function LinhaTabela({
   const nome = nomeNaTela(l);
   const tag = tagDoLanc(l);
   const negativo = Number(l.valor) < 0;
+  // o mesmo botão em dois lugares: na meta (celular) e na coluna Origem
+  // (desktop); o CSS mostra um de cada vez, então o leitor de tela acha um só
+  const botaoPapel = onPapel && (
+    <button
+      type="button"
+      className="link tl-papel"
+      onClick={onPapel}
+      aria-label={aba === 'gasto' ? `${nome} não conta` : `Contar ${nome} como gasto`}
+    >
+      {aba === 'gasto' ? 'não conta' : 'contar'}
+    </button>
+  );
 
   return (
     <li className={`tl-lin${selecionado ? ' marcado' : ''}`}>
@@ -599,15 +682,25 @@ function LinhaTabela({
         {l.data.slice(8, 10)}/{l.data.slice(5, 7)}
       </span>
       <span className="tl-nome">
-        <button type="button" className="tl-nome-botao" onClick={onFiltrarNome} aria-label={`Mostrar só ${nome}`} title={nome}>
-          {nome}
-        </button>
+        {onFiltrarNome ? (
+          <button type="button" className="tl-nome-botao" onClick={onFiltrarNome} aria-label={`Mostrar só ${nome}`} title={nome}>
+            {nome}
+          </button>
+        ) : (
+          <span title={nome}>{nome}</span>
+        )}
         {tag && <span className="tag">{tag}</span>}
       </span>
       <span className="tl-meta">
-        {nomeCartao(l)} · fatura de {rotuloMes(l.mes)}
+        <span className="tl-meta-texto">
+          {nomeCartao(l)} · {l.contaKind === 'conta_corrente' ? rotuloMes(l.mes) : `fatura de ${rotuloMes(l.mes)}`}
+        </span>
+        {botaoPapel}
       </span>
-      <span className="tl-cartao">{nomeCartao(l)}</span>
+      <span className="tl-cartao">
+        {nomeCartao(l)}
+        {botaoPapel}
+      </span>
       <select
         className={`tl-cat${l.categoryFonte === 'manual' ? ' seu' : ''}`}
         value={l.categoria ?? ''}

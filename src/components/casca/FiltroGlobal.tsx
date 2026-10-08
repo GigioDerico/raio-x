@@ -51,10 +51,10 @@ export default function FiltroGlobal({ meses, cartoes, iniciarTransicao }: Props
 
   const rotuloCartoes =
     f.cartoes.length === 0
-      ? 'Todos os cartões'
+      ? 'Cartões e contas'
       : f.cartoes.length === 1
-        ? (cartoes.find((c) => c.id === f.cartoes[0])?.nome ?? '1 cartão')
-        : `${f.cartoes.length} cartões`;
+        ? (cartoes.find((c) => c.id === f.cartoes[0])?.nome ?? '1 selecionado')
+        : `${f.cartoes.length} selecionados`;
 
   return (
     <div className="filtro-global" role="group" aria-label="Recorte">
