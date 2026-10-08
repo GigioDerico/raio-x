@@ -11,7 +11,7 @@ import {
   statement,
   txn,
 } from '@/db/schema';
-import { chaveAprendizado, lerParcela, normalizarDescricao, podeAprender } from './descricao';
+import { chaveAprendizado, lerParcela, normalizarDescricao, pareceTransferenciaParaPessoa, podeAprender } from './descricao';
 import { chaveDedupe, comOrdinais } from './dedupe';
 import { candidatosDoSuspeito, type Decisao, type LinhaDup } from './duplicados';
 import { mesPorExtenso } from './filtro';
@@ -508,6 +508,10 @@ export async function importarDoPdf(
         installmentId,
         parcelaN: parcela?.n ?? null,
         fonte: 'pdf',
+        // o PDF não diz quem recebeu: vale a regra sem documento. A extração já
+        // mandou o texto da fatura à IA (/api/import/trecho); o que esta coluna
+        // protege são os prompts do painel daqui em diante
+        pessoaFisica: pareceTransferenciaParaPessoa(p.original.desc),
         dedupeKey: chaveDedupe(accountId, p.data, p.valor, p.descNorm, p.ordinal),
       })
       .onConflictDoUpdate({

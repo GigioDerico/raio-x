@@ -7,7 +7,7 @@
  * O saldo da conta corrente pode ser guardado (plano técnico, `account.saldo`);
  * quem o grava é `gravarConexao`, direto do `balance`.
  */
-import { normalizarDescricao } from '../descricao';
+import { normalizarDescricao, pareceTransferenciaParaPessoa } from '../descricao';
 
 export type ConectorPluggy = {
   id: number;
@@ -86,8 +86,9 @@ export type Recebido = {
   parcela: { n: number; total: number } | null;
   billId: string | null;
   pendente: boolean;
-  // só a conta corrente preenche: no cartão tudo é gasto e tudo pode ir à IA
+  // só a conta corrente preenche: no cartão tudo é gasto
   papel?: Papel;
+  // conta e cartão: o de pessoa física não vai à IA
   pessoaFisica?: boolean;
 };
 
@@ -176,6 +177,8 @@ export function lancamentoDoPluggy(t: TransacaoPluggy): Recebido | null {
     parcela,
     billId: meta?.billId ?? null,
     pendente: t.status === 'PENDING',
+    // Pix e TED pagos no cartão também levam o nome de alguém (decisão do dono, 6.0)
+    pessoaFisica: ehPessoaFisica(t, valor, descOrigem),
   };
 }
 
@@ -340,7 +343,6 @@ const CATEGORIA_MESMA_PESSOA = /^same person transfer\b/i;
 const MESMA_PESSOA = /\bTRANSF\w*\s+ENTRE\s+CONTAS\b|\bMESMA\s+TITULARIDADE\b/;
 const INVESTIMENTO = /\b(APLICA[CÇ][AÃ]O|APLIC|RESGATE)\b/i;
 const CATEGORIA_INVESTIMENTO = /^(investments?|fixed income|variable income|mutual funds|pension)\b/i;
-const TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSF\w*)\b/i;
 // "Transfer - PIX", "Transfers"... A transferência própria começa por "Same
 // person" e não casa aqui
 const CATEGORIA_TRANSFERENCIA = /^transfer/i;
@@ -379,7 +381,7 @@ export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: st
   const n = digitos(outro).length;
   if (tipo === 'CPF' || n === 11) return true;
   if (tipo === 'CNPJ' || n === 14) return false;
-  return TRANSFERENCIA.test(descOrigem) || (!!t.category && CATEGORIA_TRANSFERENCIA.test(t.category));
+  return pareceTransferenciaParaPessoa(descOrigem) || (!!t.category && CATEGORIA_TRANSFERENCIA.test(t.category));
 }
 
 /**

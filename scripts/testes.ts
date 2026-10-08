@@ -16,6 +16,7 @@ import {
   normalizarDescricao,
   parecido,
   parseValor,
+  pareceTransferenciaParaPessoa,
   podeAprender,
   LIMIAR_PARECIDO,
   somarMeses,
@@ -138,6 +139,8 @@ async function main() {
   // 6.0, I1: o Pix para a pessoa e o Pix para a empresa caem na mesma chave;
   // o apelido dado à pessoa voltaria pela regra no lançamento da empresa
   checar('Pix para pessoa e para empresa têm a mesma chave de regra', chaveAprendizado('PIX ENVIADO CP MARIA SILVA') === chaveAprendizado('PIX ENVIADO CP PADARIA PAO QUENTE'));
+  checar('transferência para pessoa pela descrição', ['PIX TRANSF MARIA', 'TED 001 FULANO', 'DOC FULANO DE TAL', 'TRANSFERÊNCIA ENVIADA', 'Transf p/ Maria', 'pix enviado'].every(pareceTransferenciaParaPessoa));
+  checar('compra comum não parece transferência', !['DOCERIA DA ANA', 'TEDDY BAR', 'PIXEL STORE', 'MERCADO LIVRE', 'PAGTO BOLETO ESCOLA'].some(pareceTransferenciaParaPessoa));
   checar('pessoa física não ensina regra', !podeAprender({ pessoaFisica: true }) && podeAprender({ pessoaFisica: false }));
   checar(
     'PIX e transferência para a mesma pessoa são o mesmo estabelecimento',
@@ -784,6 +787,10 @@ async function main() {
   checar('pluggy conta não leva nome, CPF nem saldo', !vazou(cCartao) && !vazou(cCorrente));
 
   const l1 = lancamentoDoPluggy(tx())!;
+  // 6.0, I4: no cartão também, pela mesma regra; com CNPJ, não
+  checar('cartão: Pix para pessoa é pessoa física', lancamentoDoPluggy(tx({ description: 'PIX FULANO DE TAL', descriptionRaw: 'PIX FULANO DE TAL' }))!.pessoaFisica === true && lancamentoDoPluggy(tx())!.pessoaFisica === false);
+  checar('cartão: Pix com CNPJ não é pessoa física', lancamentoDoPluggy(tx({ description: 'PIX PADARIA', descriptionRaw: 'PIX PADARIA', paymentData: { receiver: { documentNumber: { type: 'CNPJ', value: CNPJ_LOJA } } } }))!.pessoaFisica === false);
+  checar('cartão: papel continua indefinido e Pix para pessoa fica em Outros', (() => { const r = lancamentoDoPluggy(tx({ description: 'PIX FULANO', descriptionRaw: 'PIX FULANO' }))!; const d = destinoNoSync(r, null); return r.papel === undefined && d.papel === 'gasto' && !d.vaiParaIA && d.outros; })());
   checar('pluggy lançamento simples', l1.pluggyTxnId === 'pt-1' && l1.data === '2026-04-10' && l1.valor === 120 && l1.descOrigem === 'IFOOD *RESTAURANTE' && l1.descNorm === normalizarDescricao('IFOOD *RESTAURANTE') && l1.tipo === 'escolha' && l1.parcela === null && l1.billId === 'bill-05' && l1.pendente === false);
   checar('pluggy lançamento não leva pagador nem estabelecimento', !vazou(l1));
   checar('pluggy data em São Paulo', lancamentoDoPluggy(tx({ date: '2026-09-05T23:30:00Z', creditCardMetadata: null }))!.data === '2026-09-05' && lancamentoDoPluggy(tx({ date: '2026-09-06T02:00:00Z', creditCardMetadata: null }))!.data === '2026-09-05');

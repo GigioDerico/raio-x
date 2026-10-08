@@ -102,6 +102,15 @@ Categoria levada pelo nome (`mesmaCategoriaPeloNome`) só alcança a mesma class
 No sync, `pessoa_fisica` só sobe no atualizar/promover, nunca desce; sem
 documento, a categoria de transferência do Pluggy também conta.
 
+Vale também para o cartão (decisão do dono): o sync do cartão e a importação do
+PDF gravam `pessoa_fisica` pela mesma regra sem documento
+(`pareceTransferenciaParaPessoa`, `src/lib/descricao.ts`), e a migração
+`0015_pessoa_fisica_cartao.sql` marca o que já estava gravado em qualquer conta.
+No cartão o Pix para pessoa fica em "Outros" e não vai à categorização.
+Limitação conhecida: a extração do PDF (`/api/import/trecho`) manda o texto da
+fatura à IA por natureza, com os nomes que ela tiver; isso já existia e não muda
+aqui — a coluna protege os prompts do painel depois da importação.
+
 ## 2. Telas
 
 ### Lançamentos
@@ -191,7 +200,7 @@ mudam, só o que entra nelas. O plano criado guarda a `renda_base` usada.
 | 6.0 | Migração 0013, sync da conta, papel automático, filtro de pessoa física na IA, painel filtrando `papel = 'gasto'` | Os gastos da conta já aparecem no painel e em Lançamentos |
 | 6.1 | Alternador em Lançamentos, ação "não conta", tela Entradas, aprendizado de renda | Dá para corrigir o automático e marcar a renda |
 | 6.2 | `rendaDoUsuario`, painel, plano, Previsto e Ajustes sem os dois campos | A renda digitada some |
-| 6.3 | Migração 0015 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
+| 6.3 | Migração 0016 apagando `renda_declarada` e `gasto_fora_cartao` | Limpeza, quando nada mais lê essas colunas |
 
 ## Testes (`scripts/testes.ts`)
 
