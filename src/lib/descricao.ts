@@ -53,6 +53,16 @@ export function chaveAprendizado(bruta: string): string {
     .join(' ');
 }
 
+/**
+ * Lançamento para pessoa física não ensina regra, nem apelido nem categoria
+ * (decisão do dono, 6.0). A chave acima é genérica no extrato ("PIX ENVIADO
+ * CP"): o apelido "Maria" dado a um Pix seria pintado pelo próximo sync num Pix
+ * para empresa, que não é privado e vai à IA com o nome.
+ */
+export function podeAprender(l: { pessoaFisica: boolean }): boolean {
+  return !l.pessoaFisica;
+}
+
 /** Palavras que não identificam ninguém — ignoradas ao comparar nomes. */
 const GENERICOS = new Set([
   'TRANSFERENCIA', 'TRANSFERENCIAS', 'TRANSF', 'PARA', 'PIX', 'TED', 'DOC',

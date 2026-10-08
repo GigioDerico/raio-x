@@ -16,6 +16,7 @@ import {
   normalizarDescricao,
   parecido,
   parseValor,
+  podeAprender,
   LIMIAR_PARECIDO,
   somarMeses,
 } from '../src/lib/descricao';
@@ -134,6 +135,10 @@ async function main() {
       chaveAprendizado('Assaí Atacadista São Paulo 9912'),
   );
   checar('chave de aprendizado tem no máximo 3 palavras', chaveAprendizado('A B C D E F').split(' ').length <= 3);
+  // 6.0, I1: o Pix para a pessoa e o Pix para a empresa caem na mesma chave;
+  // o apelido dado à pessoa voltaria pela regra no lançamento da empresa
+  checar('Pix para pessoa e para empresa têm a mesma chave de regra', chaveAprendizado('PIX ENVIADO CP MARIA SILVA') === chaveAprendizado('PIX ENVIADO CP PADARIA PAO QUENTE'));
+  checar('pessoa física não ensina regra', !podeAprender({ pessoaFisica: true }) && podeAprender({ pessoaFisica: false }));
   checar(
     'PIX e transferência para a mesma pessoa são o mesmo estabelecimento',
     mesmoEstabelecimento('TRANSFERENCIA PARA ADRIANA MARTINS', 'PIX ADRIANA MARTINS'),
