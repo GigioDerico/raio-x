@@ -269,7 +269,10 @@ export async function sincronizarConta(
               descNorm: r.descNorm,
               apelido: regra?.apelido ?? null,
               categoryId: regra?.categoryId ?? (destino.outros ? outrosId : null),
-              categoryFonte: regra ? 'regra' : 'ia',
+              // só a categoria aprendida faz a fonte ser 'regra': a regra que traz só papel ou
+              // só apelido deixaria o gasto sem categoria e fora da IA para sempre
+              // (`precisaCategoria` exige fonte 'ia' e categoria vazia)
+              categoryFonte: regra?.categoryId ? 'regra' : 'ia',
               tipo: r.tipo,
               papel: destino.papel,
               pessoaFisica: !!r.pessoaFisica,
