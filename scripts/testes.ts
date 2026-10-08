@@ -58,7 +58,7 @@ import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
 import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
-import { casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
+import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
 import { janelaAtualizar, janelaInicial, precisaSincronizar } from '../src/lib/pluggy/janela';
 import { avisoDasConexoes, conexoesOrfas, estadoDaConexao, haQuanto } from '../src/lib/pluggy/estado';
 import { lerEventoPluggy } from '../src/lib/pluggy/webhook';
@@ -782,7 +782,8 @@ async function main() {
   const cCartao = contaDoPluggy(CONTA_CARTAO);
   checar('pluggy conta de cartão', JSON.stringify(cCartao) === JSON.stringify({ pluggyAccountId: 'pa-cartao', kind: 'cartao_credito', last4: '1111', nomeOrigem: 'Itaú Uniclass Visa', limite: 8000 }));
   const cCorrente = contaDoPluggy(CONTA_CORRENTE);
-  checar('pluggy conta corrente e poupança', cCorrente.kind === 'conta_corrente' && cCorrente.last4 === '3456' && cCorrente.nomeOrigem === 'Conta Corrente' && cCorrente.limite === null && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'SAVINGS_ACCOUNT' }).kind === 'poupanca' && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'PAYMENT_ACCOUNT' }).kind === 'conta_pagamento');
+  checar('pluggy conta corrente e poupança', cCorrente.kind === 'conta_corrente' && cCorrente.last4 === '3456' && cCorrente.nomeOrigem === null && cCorrente.limite === null && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'SAVINGS_ACCOUNT' }).kind === 'poupanca' && contaDoPluggy({ ...CONTA_CORRENTE, subtype: 'PAYMENT_ACCOUNT' }).kind === 'conta_pagamento');
+  checar('pluggy conta corrente leva o banco do código COMPE, não o name', contaDoPluggy({ ...CONTA_CORRENTE, bankData: { transferNumber: '341/0001/00012345-6' } }).nomeOrigem === 'Itaú' && contaDoPluggy({ ...CONTA_CORRENTE, name: NOME_TITULAR, bankData: { transferNumber: '999/0001/1' } }).nomeOrigem === null && bancoDoCodigo('033/0001/1') === 'Santander' && bancoDoCodigo(null) === null);
   const vazou = (x: unknown) => [NOME_TITULAR, CPF_TITULAR, CNPJ_LOJA, '1234.5', '9876.54', 'documentNumber'].some((s) => JSON.stringify(x).includes(s));
   checar('pluggy conta não leva nome, CPF nem saldo', !vazou(cCartao) && !vazou(cCorrente));
 

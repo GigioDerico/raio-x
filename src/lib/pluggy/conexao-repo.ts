@@ -86,7 +86,14 @@ export async function gravarConexao(
       comandos.push(
         db
           .update(account)
-          .set({ pluggyAccountId: c.pluggyAccountId, connectionId: conexaoId, limite, ...saldo })
+          .set({
+            pluggyAccountId: c.pluggyAccountId,
+            connectionId: conexaoId,
+            limite,
+            ...saldo,
+            // a conta ligada antes da 6.0 ficou sem nome (era "MeuPluggy conta"); o cartão mantém o que tem
+            ...(c.kind !== 'cartao_credito' && c.nomeOrigem ? { nomeOrigem: c.nomeOrigem } : {}),
+          })
           .where(and(eq(account.id, decisao.usar), eq(account.userId, userId))),
       );
     } else {
@@ -100,8 +107,8 @@ export async function gravarConexao(
             kind: c.kind,
             pluggyAccountId: c.pluggyAccountId,
             last4: c.last4,
-            // em alguns conectores o `name` da conta corrente é o nome do titular (regra 5)
-            nomeOrigem: c.kind === 'cartao_credito' ? c.nomeOrigem : null,
+            // na conta, `contaDoPluggy` já trocou o `name` (que pode ser o titular) pelo banco do código COMPE
+            nomeOrigem: c.nomeOrigem,
             limite,
             ...saldo,
           })

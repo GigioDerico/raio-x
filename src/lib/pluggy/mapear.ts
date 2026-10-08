@@ -37,6 +37,7 @@ export type ContaPluggy = {
   owner?: string | null;
   taxNumber?: string | null;
   creditData?: { creditLimit?: number | null } | null;
+  bankData?: { transferNumber?: string | null } | null;
 };
 
 export type TransacaoPluggy = {
@@ -103,6 +104,20 @@ export function statusDoItem(status: string): StatusConexao {
   return 'erro';
 }
 
+// Código COMPE → nome do banco. Pelo agregador (MeuPluggy) a instituição da
+// conexão é o agregador, não o banco: sem isto a conta apareceria como
+// "MeuPluggy conta". Só os bancos de varejo comuns; o resto fica sem nome.
+const BANCOS: Record<string, string> = {
+  '001': 'Banco do Brasil', '033': 'Santander', '077': 'Inter', '104': 'Caixa', '208': 'BTG',
+  '212': 'Original', '237': 'Bradesco', '260': 'Nubank', '290': 'PagBank', '323': 'Mercado Pago',
+  '336': 'C6', '341': 'Itaú', '380': 'PicPay', '422': 'Safra', '748': 'Sicredi', '756': 'Sicoob',
+};
+
+export function bancoDoCodigo(transferNumber: string | null | undefined): string | null {
+  const codigo = /^\s*(\d{3})\b/.exec(transferNumber ?? '')?.[1];
+  return codigo ? (BANCOS[codigo] ?? null) : null;
+}
+
 export function contaDoPluggy(c: ContaPluggy): ContaMapeada {
   const kind: KindConta =
     c.type === 'CREDIT' || c.subtype === 'CREDIT_CARD'
@@ -117,7 +132,8 @@ export function contaDoPluggy(c: ContaPluggy): ContaMapeada {
     pluggyAccountId: c.id,
     kind,
     last4: digitos ? digitos.slice(-4) : null,
-    nomeOrigem: c.marketingName || c.name || null,
+    // na conta, o `name` pode ser o nome do titular (regra 5); o banco sai do código COMPE
+    nomeOrigem: kind === 'cartao_credito' ? c.marketingName || c.name || null : bancoDoCodigo(c.bankData?.transferNumber),
     limite: typeof c.creditData?.creditLimit === 'number' ? c.creditData.creditLimit : null,
   };
 }
