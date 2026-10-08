@@ -15,7 +15,7 @@ import { parcelasInfo, projecao, type Projecao } from './parcelas';
 export type ConfigRenda = Pick<Contexto, 'renda' | 'metaPoupanca' | 'foraCartao'>;
 
 export type PlanoSaudavel = {
-  /** o que o cartão pode consumir guardando a meta; null sem renda */
+  /** o que pode ir para gastos guardando a meta; null sem renda */
   teto: number | null;
   compromissos: number;
   disponivel: number | null;
