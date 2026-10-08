@@ -1,6 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   account,
@@ -18,6 +18,8 @@ import { mesPorExtenso } from './filtro';
 import { categoriaHerdada, chaveDoNome } from './nome-na-tela';
 import { planoDaParcela, tipoDoTxn } from './importacao';
 import type { LancLimpo } from './extracao';
+import { origensDoPapel, papelAceito, regraDoPapel, type LinhaEntrada } from './papel';
+import type { Papel } from './pluggy/mapear';
 
 // espelho de `chaveDoNome(nomeNaTela(l))` (src/lib/nome-na-tela.ts): o nome que
 // a lista mostra, sem maiúscula nem espaço sobrando. `nullif` repete o `||` da tela
@@ -45,6 +47,8 @@ export type FiltroTxn = {
   busca?: string | null;
   /** nome na tela de um estabelecimento: só os dele, pela mesma chave da 3.8 */
   nome?: string | null;
+  /** 'fora' = a aba "Não conta" de Lançamentos: só os débitos que não contam (6.1) */
+  papel?: 'gasto' | 'fora';
   limite?: number;
 };
 
@@ -60,8 +64,10 @@ export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.k
 
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
-  // crédito, renda e o que não conta não são gasto: a 6.1 os mostra em Entradas e no "Não conta"
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
+  // crédito, renda e o que não conta não são gasto: Entradas e a aba "Não conta" os mostram (6.1)
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, f.papel ?? 'gasto')];
+  // os créditos que não contam ficam em Entradas, não aqui
+  if (f.papel === 'fora') cond.push(gt(txn.valor, '0'));
 
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
   // os ids vêm do cliente; o join da conta abaixo confirma a posse
@@ -97,6 +103,8 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
       contaApelido: account.apelido,
       contaLast4: account.last4,
       contaBanco: rotuloDaConta,
+      papel: txn.papel,
+      contaKind: account.kind,
     })
     .from(txn)
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
@@ -107,6 +115,63 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
     .where(and(...cond))
     .orderBy(desc(txn.data), asc(txn.descNorm))
     .limit(Math.min(f.limite ?? 500, 2000));
+}
+
+/** O N do alternador "Não conta (N)": débitos fora dos totais no recorte. */
+export async function contarNaoConta(userId: string, f: { mes?: string | null; accountIds?: string[] }) {
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), eq(txn.papel, 'fora'), gt(txn.valor, '0')];
+  if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
+  if (f.accountIds?.length) cond.push(inArray(txn.accountId, f.accountIds));
+  const [linha] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(txn)
+    .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId)))
+    .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
+    .where(and(...cond));
+  return linha?.n ?? 0;
+}
+
+/** Os créditos da conta corrente no recorte, para a tela Entradas. */
+export async function listarEntradas(userId: string, f: { mes?: string | null; accountIds?: string[] }): Promise<LinhaEntrada[]> {
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), lt(txn.valor, '0'), inArray(txn.papel, ['entrada', 'renda', 'fora'])];
+  if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
+  if (f.accountIds?.length) cond.push(inArray(txn.accountId, f.accountIds));
+  const linhas = await db
+    .select({
+      id: txn.id,
+      data: txn.data,
+      valor: txn.valor,
+      nome: nomeNaTelaSql,
+      contaApelido: account.apelido,
+      contaLast4: account.last4,
+      contaBanco: rotuloDaConta,
+      papel: txn.papel,
+      pessoaFisica: txn.pessoaFisica,
+    })
+    .from(txn)
+    .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId), eq(account.kind, 'conta_corrente')))
+    .innerJoin(institution, eq(institution.id, account.institutionId))
+    .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
+    .where(and(...cond))
+    .orderBy(asc(txn.data), asc(txn.id));
+  return linhas.map((l) => ({
+    id: l.id,
+    data: l.data,
+    valor: l.valor,
+    nome: l.nome,
+    conta: l.contaApelido || `${l.contaBanco}${l.contaLast4 ? ` ••${l.contaLast4}` : ''}`,
+    papel: l.papel,
+    pessoaFisica: l.pessoaFisica,
+  }));
+}
+
+export async function temContaCorrente(userId: string): Promise<boolean> {
+  const [c] = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente'), eq(account.ativo, true)))
+    .limit(1);
+  return Boolean(c);
 }
 
 export type OpcoesFiltro = {
@@ -396,6 +461,96 @@ export async function regrasAprendidas(userId: string) {
     .from(learnedLabel)
     .where(eq(learnedLabel.userId, userId));
   return new Map(linhas.map((l) => [l.descNorm, l]));
+}
+
+const contasCorrentes = (userId: string) =>
+  db.select({ id: account.id }).from(account).where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente')));
+
+/** O sinal que cada papel admite, no SQL — o mesmo de `papelAceito`. */
+const sinalDoPapel = (papel: Papel) =>
+  papel === 'fora' ? sql`true` : papel === 'gasto' ? gt(txn.valor, '0') : lt(txn.valor, '0');
+
+/**
+ * Grava a regra de papel da origem. `null` desfaz: só atualiza (não cria uma
+ * regra vazia). A categoria e o apelido da regra ficam como estão.
+ */
+async function aprenderPapel(userId: string, chave: string, regra: 'renda' | 'fora' | null) {
+  if (regra === null) {
+    await db
+      .update(learnedLabel)
+      .set({ papel: null, atualizadoEm: new Date() })
+      .where(and(eq(learnedLabel.userId, userId), eq(learnedLabel.descNorm, chave)));
+    return;
+  }
+  await db
+    .insert(learnedLabel)
+    .values({ userId, descNorm: chave, papel: regra })
+    .onConflictDoUpdate({
+      target: [learnedLabel.userId, learnedLabel.descNorm],
+      set: { papel: regra, hits: sql`${learnedLabel.hits} + 1`, atualizadoEm: new Date() },
+    });
+}
+
+/**
+ * A marcação do dono (6.1): grava `papel` como manual — nenhum sync a desfaz —,
+ * ensina a regra da origem e a leva às linhas automáticas da mesma origem.
+ * Só conta corrente, e só o papel que cabe no sinal: o resto dos `ids` é pulado.
+ * Pix para pessoa física é marcado mas não ensina nada (`podeAprender`).
+ */
+export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
+  if (ids.length === 0) return { alterados: 0, outros: 0, aprendeu: false };
+  const linhas = await db
+    .update(txn)
+    .set({ papel, papelFonte: 'manual' })
+    .where(
+      and(
+        inArray(txn.id, ids),
+        eq(txn.userId, userId),
+        isNull(txn.excluidoEm),
+        inArray(txn.accountId, contasCorrentes(userId)),
+        sinalDoPapel(papel),
+      ),
+    )
+    .returning({ id: txn.id, descNorm: txn.descNorm, pessoaFisica: txn.pessoaFisica });
+
+  const chaves = new Set(linhas.filter(podeAprender).map((l) => chaveAprendizado(l.descNorm)).filter(Boolean));
+  const regra = regraDoPapel(papel);
+  for (const chave of chaves) await aprenderPapel(userId, chave, regra);
+
+  let outros = 0;
+  const origens = origensDoPapel(papel);
+  if (chaves.size && origens.length) {
+    // a chave da regra (3 primeiras palavras) só existe em JS: escolhe as candidatas
+    // no banco e confere a chave aqui. Linha de pessoa física não recebe regra de
+    // outra origem que caiu na mesma chave genérica ("PIX ENVIADO ...")
+    const candidatas = await db
+      .select({ id: txn.id, descNorm: txn.descNorm, valor: txn.valor })
+      .from(txn)
+      .where(
+        and(
+          eq(txn.userId, userId),
+          isNull(txn.excluidoEm),
+          eq(txn.papelFonte, 'auto'),
+          eq(txn.pessoaFisica, false),
+          inArray(txn.papel, origens),
+          inArray(txn.accountId, contasCorrentes(userId)),
+          notInArray(txn.id, ids),
+        ),
+      );
+    const alvo = candidatas
+      .filter((c) => chaves.has(chaveAprendizado(c.descNorm)) && papelAceito(Number(c.valor), papel))
+      .map((c) => c.id);
+    if (alvo.length) {
+      // continuam 'auto': vieram da regra, e desfazer a regra as devolve
+      const feitas = await db
+        .update(txn)
+        .set({ papel })
+        .where(and(inArray(txn.id, alvo), eq(txn.userId, userId), eq(txn.papelFonte, 'auto')))
+        .returning({ id: txn.id });
+      outros = feitas.length;
+    }
+  }
+  return { alterados: linhas.length, outros, aprendeu: chaves.size > 0 };
 }
 
 const cacheCategorias = new Map<string, number>();
