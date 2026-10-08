@@ -56,7 +56,7 @@ import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
 import { recorrentesFixas } from '../src/lib/calculos/composicao';
-import { casarConta, contaDoPluggy, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
+import { casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
 import { janelaAtualizar, janelaInicial, precisaSincronizar } from '../src/lib/pluggy/janela';
 import { avisoDasConexoes, conexoesOrfas, estadoDaConexao, haQuanto } from '../src/lib/pluggy/estado';
 import { lerEventoPluggy } from '../src/lib/pluggy/webhook';
@@ -799,6 +799,55 @@ async function main() {
   checar('pluggy pendente', lancamentoDoPluggy(tx({ status: 'PENDING' }))!.pendente === true);
   checar('pluggy descrição sem raw usa a limpa', lancamentoDoPluggy(tx({ descriptionRaw: null }))!.descOrigem === 'IFOOD RESTAURANTE');
   checar('pluggy lançamento malformado é descartado', lancamentoDoPluggy(tx({ id: '' })) === null && lancamentoDoPluggy(tx({ amount: '120' as unknown as number })) === null && lancamentoDoPluggy(tx({ amount: Number.NaN })) === null && lancamentoDoPluggy(tx({ date: 'ontem', creditCardMetadata: null })) === null && lancamentoDoPluggy(tx({ creditCardMetadata: { purchaseDate: '2026-02-30' } })) === null);
+  // ---- pluggy: conta corrente (6.0) ----------------------------------------
+  process.stdout.write('\n');
+
+  // lançamento de conta: sem metadado de cartão, sem merchant, sem pagamento por padrão
+  const txc = (o: Partial<Parameters<typeof lancamentoDaConta>[0]> = {}) =>
+    tx({ creditCardMetadata: null, merchant: null, paymentData: null, type: 'DEBIT', amount: -80, description: 'CONTA LUZ', descriptionRaw: 'CONTA LUZ', ...o });
+  const doc = (tipo: 'CPF' | 'CNPJ', valor: string) => ({ documentNumber: { type: tipo, value: valor } });
+  const CPF_OUTRA_PESSOA = '987.654.321-00';
+
+  const cDeb = lancamentoDaConta(txc())!;
+  checar('conta débito vira gasto positivo', cDeb.valor === 80 && cDeb.papel === 'gasto' && cDeb.tipo === 'escolha' && cDeb.pessoaFisica === false && cDeb.parcela === null && cDeb.billId === null && cDeb.data === '2026-04-10' && cDeb.dataLancamento === '2026-04-10');
+  checar('conta débito com amount positivo continua positivo', lancamentoDaConta(txc({ amount: 80 }))!.valor === 80);
+  const cCred = lancamentoDaConta(txc({ type: 'CREDIT', amount: 5000, description: 'SALARIO EMPRESA X', descriptionRaw: 'SALARIO EMPRESA X' }))!;
+  checar('conta crédito vira entrada negativa', cCred.valor === -5000 && cCred.papel === 'entrada');
+  checar('conta sem type usa o sinal do Pluggy invertido', lancamentoDaConta(txc({ type: undefined, amount: -30 }))!.valor === 30 && lancamentoDaConta(txc({ type: undefined, amount: 30 }))!.valor === -30);
+
+  checar('conta pagamento de fatura não conta',
+    ['PAGAMENTO FATURA CARTAO', 'PAG FATURA ITAU', 'PAGTO CARTAO CREDITO'].every((d) => lancamentoDaConta(txc({ amount: -1500, description: d, descriptionRaw: d }))!.papel === 'fora') &&
+    lancamentoDaConta(txc({ category: 'Credit card payment', description: 'X', descriptionRaw: 'X' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ operationType: 'PAGAMENTO_FATURA' }))!.papel === 'fora');
+  checar('conta transferência própria não conta',
+    lancamentoDaConta(txc({ description: 'PIX TRANSF', descriptionRaw: 'PIX TRANSF', paymentData: { payer: doc('CPF', CPF_TITULAR), receiver: doc('CPF', '12345678900') } }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 300, category: 'Same person transfer' }))!.papel === 'fora');
+  checar('conta aplicação e resgate não contam',
+    lancamentoDaConta(txc({ description: 'APLICACAO CDB', descriptionRaw: 'APLICACAO CDB' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ type: 'CREDIT', amount: 1000, description: 'RESGATE CDB', descriptionRaw: 'RESGATE CDB' }))!.papel === 'fora' &&
+    lancamentoDaConta(txc({ category: 'Fixed income' }))!.papel === 'fora');
+  checar('conta estorno de loja é entrada, não fora', lancamentoDaConta(txc({ type: 'CREDIT', amount: 50, description: 'ESTORNO LOJA', descriptionRaw: 'ESTORNO LOJA' }))!.papel === 'entrada');
+
+  checar('conta tarifa é encargo', lancamentoDaConta(txc({ amount: -45, description: 'TARIFA PACOTE SERVICOS', descriptionRaw: 'TARIFA PACOTE SERVICOS' }))!.tipo === 'encargo');
+
+  const pix = (paymentData: unknown, d = 'PIX TRANSF MARIA') => txc({ description: d, descriptionRaw: d, paymentData });
+  checar('pessoa física pelo CPF do recebedor', lancamentoDaConta(pix({ payer: doc('CPF', CPF_TITULAR), receiver: doc('CPF', CPF_OUTRA_PESSOA) }))!.pessoaFisica === true);
+  checar('pessoa jurídica pelo CNPJ do recebedor', lancamentoDaConta(pix({ payer: doc('CPF', CPF_TITULAR), receiver: doc('CNPJ', CNPJ_LOJA) }, 'PIX QRS PADARIA'))!.pessoaFisica === false);
+  checar('Pix sem documento é pessoa física (conservador)', lancamentoDaConta(pix(null, 'PIX TRANSF JOAO'))!.pessoaFisica === true && lancamentoDaConta(pix(null, 'TED 001 FULANO'))!.pessoaFisica === true);
+  checar('boleto sem documento não é pessoa física', lancamentoDaConta(pix(null, 'PAGTO BOLETO ESCOLA'))!.pessoaFisica === false);
+  checar('crédito olha o pagador', ehPessoaFisica(txc({ type: 'CREDIT', paymentData: { payer: doc('CPF', CPF_OUTRA_PESSOA), receiver: doc('CPF', CPF_TITULAR) } }), -100, 'PIX RECEBIDO') === true);
+
+  const cPix = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA', ...doc('CNPJ', CNPJ_LOJA) } }))!;
+  // o nome da outra ponta pode estar na descrição (é o que o banco escreve); o documento e o nome do titular nunca
+  checar('conta não leva documento nem titular', !vazou(cPix));
+  checar('conta malformada é descartada', lancamentoDaConta(txc({ id: '' })) === null && lancamentoDaConta(txc({ amount: Number.NaN })) === null && lancamentoDaConta(txc({ date: 'ontem' })) === null);
+  checar('papelDaConta direto', papelDaConta(txc(), 80, 'CONTA LUZ') === 'gasto' && papelDaConta(txc(), -80, 'PIX RECEBIDO') === 'entrada');
+
+  checar('destino: cartão continua indo à IA como gasto', JSON.stringify(destinoNoSync({}, null)) === JSON.stringify({ papel: 'gasto', vaiParaIA: true, outros: false }));
+  checar('destino: gasto para pessoa física fica em Outros e não vai à IA', JSON.stringify(destinoNoSync({ papel: 'gasto', pessoaFisica: true }, null)) === JSON.stringify({ papel: 'gasto', vaiParaIA: false, outros: true }));
+  checar('destino: entrada aprendida vira renda', destinoNoSync({ papel: 'entrada' }, 'renda').papel === 'renda' && destinoNoSync({ papel: 'entrada' }, null).papel === 'entrada');
+  checar('destino: regra de renda não mexe em gasto nem em fora', destinoNoSync({ papel: 'gasto' }, 'renda').papel === 'gasto' && destinoNoSync({ papel: 'fora' }, 'renda').papel === 'fora');
+  checar('destino: entrada, renda e fora não vão à IA', (['entrada', 'renda', 'fora'] as const).every((p) => !destinoNoSync({ papel: p }, null).vaiParaIA && !destinoNoSync({ papel: p }, null).outros));
   checar('pluggy fatura pelo vencimento', JSON.stringify(faturaDaBill(BILL)) === JSON.stringify({ pluggyBillId: 'bill-05', mesRef: '2026-05', vencimento: '2026-05-10', fechamento: null, total: 2345.67 }));
   checar('pluggy fatura com fechamento', faturaDaBill({ ...BILL, billClosingDate: '2026-05-01T00:00:00.000Z' }).fechamento === '2026-05-01');
 

@@ -72,6 +72,8 @@ export type ContaMapeada = {
   limite: number | null;
 };
 
+export type Papel = 'gasto' | 'entrada' | 'renda' | 'fora';
+
 export type Recebido = {
   pluggyTxnId: string;
   data: string;
@@ -84,6 +86,9 @@ export type Recebido = {
   parcela: { n: number; total: number } | null;
   billId: string | null;
   pendente: boolean;
+  // só a conta corrente preenche: no cartão tudo é gasto e tudo pode ir à IA
+  papel?: Papel;
+  pessoaFisica?: boolean;
 };
 
 export type FaturaMapeada = { pluggyBillId: string; mesRef: string; vencimento: string; fechamento: string | null; total: number };
@@ -308,4 +313,93 @@ export function mesesDasFaturas(faturas: readonly FaturaMapeada[]): FaturaMapead
     saida.push(anterior && f.mesRef <= anterior.mesRef ? { ...f, mesRef: mesSeguinte(anterior.mesRef) } : f);
   }
   return saida;
+}
+
+// ---- conta corrente (6.0) ---------------------------------------------------
+
+type Documento = { documentNumber?: { type?: string | null; value?: string | null } | null } | null | undefined;
+type DadosPagamento = { payer?: Documento; receiver?: Documento } | null;
+
+const dadosPagamento = (t: TransacaoPluggy): DadosPagamento =>
+  t.paymentData && typeof t.paymentData === 'object' ? (t.paymentData as DadosPagamento) : null;
+const digitos = (d: Documento) => String(d?.documentNumber?.value ?? '').replace(/\D/g, '');
+
+const ENCARGO_CONTA = /\b(IOF|JUROS|MORA|MULTA|TARIFA|ENCARGOS?)\b/i;
+const PAGAMENTO_DE_FATURA = /\bFATURA\b|\bPAG(?:TO|AMENTO)?\s+(?:DE\s+)?CART(?:AO|ÃO)\b/i;
+const INVESTIMENTO = /\b(APLICA[CÇ][AÃ]O|APLIC|RESGATE)\b/i;
+const CATEGORIA_INVESTIMENTO = /^(investments?|fixed income|variable income|mutual funds|pension)\b/i;
+const TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSF\w*)\b/i;
+
+/**
+ * Pagamento de fatura, transferência entre contas do mesmo titular, aplicação e
+ * resgate não são gasto nem renda: o gasto já está no cartão ou o dinheiro só
+ * mudou de lugar. O documento do pagador e do recebedor só é comparado aqui, na
+ * memória: nenhum dos dois sai desta função (regra 5).
+ */
+export function papelDaConta(t: TransacaoPluggy, valor: number, descOrigem: string): Papel {
+  if (t.operationType === 'PAGAMENTO_FATURA' || t.category === 'Credit card payment' || PAGAMENTO_DE_FATURA.test(descOrigem)) return 'fora';
+  const d = dadosPagamento(t);
+  const pagador = digitos(d?.payer);
+  if (t.category === 'Same person transfer' || (pagador !== '' && pagador === digitos(d?.receiver))) return 'fora';
+  if ((t.category && CATEGORIA_INVESTIMENTO.test(t.category)) || INVESTIMENTO.test(descOrigem)) return 'fora';
+  return valor > 0 ? 'gasto' : 'entrada';
+}
+
+/**
+ * A outra ponta é pessoa física? No débito é quem recebe; no crédito, quem paga.
+ * Sem documento, Pix e TED contam como pessoa física: a descrição deles traz o
+ * nome de alguém, e o nome não pode ir à IA (regra 4).
+ */
+export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: string): boolean {
+  const d = dadosPagamento(t);
+  const outro = valor > 0 ? d?.receiver : d?.payer;
+  const tipo = outro?.documentNumber?.type;
+  const n = digitos(outro).length;
+  if (tipo === 'CPF' || n === 11) return true;
+  if (tipo === 'CNPJ' || n === 14) return false;
+  return TRANSFERENCIA.test(descOrigem);
+}
+
+/**
+ * Pluggy → modelo do app, para conta corrente. Mesma convenção do cartão:
+ * positivo é dinheiro que sai. O `type` manda sobre o sinal do `amount`, que
+ * na conta vem negativo no débito; sem `type`, o sinal invertido.
+ */
+export function lancamentoDaConta(t: TransacaoPluggy): Recebido | null {
+  if (!t.id || typeof t.amount !== 'number' || !Number.isFinite(t.amount)) return null;
+  const data = diaEmSaoPaulo(t.date);
+  if (!data || !diaValido(data)) return null;
+  const descOrigem = (t.descriptionRaw || t.description || '').trim();
+  const centavos = Math.round(t.amount * 100) / 100;
+  const valor = t.type === 'DEBIT' ? Math.abs(centavos) : t.type === 'CREDIT' ? -Math.abs(centavos) : -centavos;
+  return {
+    pluggyTxnId: t.id,
+    data,
+    dataLancamento: data,
+    valor,
+    descOrigem,
+    descNorm: normalizarDescricao(descOrigem),
+    tipo: valor > 0 && ENCARGO_CONTA.test(descOrigem) ? 'encargo' : 'escolha',
+    parcela: null,
+    billId: null,
+    pendente: t.status === 'PENDING',
+    papel: papelDaConta(t, valor, descOrigem),
+    pessoaFisica: ehPessoaFisica(t, valor, descOrigem),
+  };
+}
+
+/**
+ * O que o sync grava e para onde manda um recebido. A renda aprendida da origem
+ * só promove uma entrada: o gasto e o que não conta ficam como o mapeamento
+ * decidiu. Só gasto vai à IA, e nunca o de pessoa física, que fica em "Outros"
+ * até o dono categorizar.
+ */
+export function destinoNoSync(
+  r: Pick<Recebido, 'papel' | 'pessoaFisica'>,
+  regraPapel: string | null | undefined,
+): { papel: Papel; vaiParaIA: boolean; outros: boolean } {
+  const base = r.papel ?? 'gasto';
+  const papel: Papel = base === 'entrada' && regraPapel === 'renda' ? 'renda' : base;
+  const gasto = papel === 'gasto';
+  return { papel, vaiParaIA: gasto && !r.pessoaFisica, outros: gasto && !!r.pessoaFisica };
 }
