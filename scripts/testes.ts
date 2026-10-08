@@ -703,13 +703,13 @@ async function main() {
   checar('ajustes renda negativa é erro', erroC({ renda: '-1' }) === 'renda_negativa');
   checar('ajustes texto que não é número é erro', erroC({ renda: 'abc' }) === 'valor_invalido' && erroC({ renda: '12abc' }) === 'valor_invalido' && erroC({ metaPoupanca: '' }) === 'valor_invalido');
   checar('ajustes meta entre 0 e 80', okC({ metaPoupanca: '0' })?.metaPoupanca === 0 && okC({ metaPoupanca: '80' })?.metaPoupanca === 80 && erroC({ metaPoupanca: '-1' }) === 'meta_fora' && erroC({ metaPoupanca: '81' }) === 'meta_fora');
-  checar('ajustes fora do cartão vazio vira zero e negativo é erro', okC({ foraCartao: '' })?.foraCartao === 0 && erroC({ foraCartao: '-1' }) === 'fora_negativo');
+  checar('ajustes ignora foraCartao (campo removido)', erroC({ foraCartao: '100' }) === 'sem_mudanca' && JSON.stringify(okC({ renda: '100', foraCartao: '9' })) === JSON.stringify({ renda: 100 }));
   checar('ajustes config só leva campos presentes', JSON.stringify(okC({ metaPoupanca: 15 })) === JSON.stringify({ metaPoupanca: 15 }));
   checar('ajustes config ignora campo estranho', JSON.stringify(okC({ renda: '100', user_id: 'x' })) === JSON.stringify({ renda: 100 }));
   checar('ajustes config sem campo conhecido é erro', erroC({}) === 'sem_mudanca' && erroC({ user_id: 'x' }) === 'sem_mudanca' && erroC(null) === 'sem_mudanca' && erroC('8000') === 'sem_mudanca');
   checar('ajustes milhar com decimal e decimal só com separador', okC({ renda: '8.000,5' })?.renda === 8000.5 && okC({ renda: '1.000.000,00' })?.renda === 1000000 && okC({ renda: ',5' })?.renda === 0.5 && okC({ renda: '8 000' })?.renda === 8000);
   checar('ajustes número mal formado é erro, não prefixo', ['1,234.56', '1.5.6', '1,2,3', '-', '.', '1e3'].every((r) => erroC({ renda: r }) === 'valor_invalido'));
-  checar('ajustes valor que não cabe na coluna é erro de uso', erroC({ renda: '1000000000000' }) === 'valor_grande' && erroC({ foraCartao: 1e20 }) === 'valor_grande' && okC({ renda: '999.999.999.999' })?.renda === 999999999999);
+  checar('ajustes valor que não cabe na coluna é erro de uso', erroC({ renda: '1000000000000' }) === 'valor_grande' && okC({ renda: '999.999.999.999' })?.renda === 999999999999);
 
   const okA = (c: unknown) => { const v = validarConta(c); return v.ok ? v.mudanca : null; };
   const erroA = (c: unknown) => { const v = validarConta(c); return v.ok ? null : v.codigo; };

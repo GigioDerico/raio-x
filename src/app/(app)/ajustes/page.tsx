@@ -26,13 +26,13 @@ export default async function Ajustes() {
       <section className="cartao ajustes-bloco" aria-labelledby="aj-renda">
         <h2 id="aj-renda">Renda e meta</h2>
         <div className="ajustes-campos iguais">
-          <CampoAjuste url="/api/ajustes" campo="renda" rotulo="Renda prevista do mês (R$)" tipo="dinheiro" valor={formatarCampo('dinheiro', config.renda)} placeholder="0,00" />
+          <CampoAjuste url="/api/ajustes" campo="renda" rotulo="Renda mensal (R$)" tipo="dinheiro" valor={formatarCampo('dinheiro', config.renda)} placeholder="0,00" />
           <CampoAjuste url="/api/ajustes" campo="metaPoupanca" rotulo="Guardar por mês (%)" tipo="percentual" valor={formatarCampo('percentual', config.metaPoupanca)} placeholder="20" />
-          <CampoAjuste url="/api/ajustes" campo="foraCartao" rotulo="Gastos fora do cartão (R$)" tipo="dinheiro" valor={formatarCampo('dinheiro', config.foraCartao)} placeholder="0,00" />
         </div>
         <p className="ajustes-nota">
-          Aluguel, Pix, boleto e dinheiro não aparecem nas faturas — informe o total mensal deles para o teto do cartão sair
-          certo. Projeção é estimativa, não recomendação financeira profissional.
+          A renda é o que você informa aqui — o app não a tira dos lançamentos. Os gastos da conta corrente (Pix, boleto,
+          débito) já entram nos totais pelas contas conectadas. Projeção é estimativa, não recomendação financeira
+          profissional.
         </p>
         <Link href="/parcelas" className="ajustes-link">Ver o previsto em Parcelas</Link>
       </section>
