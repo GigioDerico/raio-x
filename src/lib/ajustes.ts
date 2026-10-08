@@ -10,7 +10,6 @@ export type Validado<T> = { ok: true; mudanca: T } | { ok: false; codigo: string
 export type MudancaConfig = {
   renda?: number | null;
   metaPoupanca?: number;
-  foraCartao?: number;
   modeloIa?: string | null;
   tetoIaUsd?: number | null;
 };
@@ -69,17 +68,6 @@ export function validarConfig(corpo: unknown): Validado<MudancaConfig> {
     if (n < 0 || n > 80) return erro('meta_fora', 'meta entre 0 e 80%');
     m.metaPoupanca = n;
   }
-  if ('foraCartao' in c) {
-    // a coluna é `not null default 0`: apagar o campo é dizer "nada fora do cartão"
-    if (vazio(c.foraCartao)) m.foraCartao = 0;
-    else {
-      const n = lerNumero(c.foraCartao);
-      if (Number.isNaN(n)) return erro('valor_invalido', 'gasto fora do cartão não é um número');
-      if (n < 0) return erro('fora_negativo', 'gasto fora do cartão não pode ser negativo');
-      if (n >= TETO) return erro('valor_grande', 'valor grande demais');
-      m.foraCartao = n;
-    }
-  }
   if ('modeloIa' in c) {
     if (vazio(c.modeloIa)) m.modeloIa = null;
     else {
@@ -101,6 +89,11 @@ export function validarConfig(corpo: unknown): Validado<MudancaConfig> {
   }
   if (Object.keys(m).length === 0) return erro('sem_mudanca', 'nenhum campo para salvar');
   return { ok: true, mudanca: m };
+}
+
+/** Dia de fechamento e de vencimento só fazem sentido no cartão; conta corrente aceita só o apelido. */
+export function tiposDeContaQuePodemMudar(m: MudancaConta): ('cartao_credito' | 'conta_corrente')[] {
+  return 'diaFechamento' in m || 'diaVencimento' in m ? ['cartao_credito'] : ['cartao_credito', 'conta_corrente'];
 }
 
 export function validarConta(corpo: unknown): Validado<MudancaConta> {

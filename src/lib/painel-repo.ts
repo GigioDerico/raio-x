@@ -64,7 +64,7 @@ export async function carregarContexto(
       .from(learnedLabel)
       .where(and(eq(learnedLabel.userId, userId), isNotNull(learnedLabel.apelido))),
     db
-      .select({ renda: userSetting.rendaDeclarada, meta: userSetting.metaPoupanca, fora: userSetting.gastoForaCartao })
+      .select({ renda: userSetting.rendaDeclarada, meta: userSetting.metaPoupanca })
       .from(userSetting)
       .where(eq(userSetting.userId, userId))
       .limit(1),

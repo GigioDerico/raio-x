@@ -1,21 +1,20 @@
 import 'server-only';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { nomeDaConta } from './txn-repo';
 import { db } from '@/db';
 import { env } from '@/env';
 import { account, institution, statement, userSetting } from '@/db/schema';
 import { configDoUsuario } from './calculos/adaptador';
-import type { CartaoAjuste, MudancaConfig, MudancaConta } from './ajustes';
+import { tiposDeContaQuePodemMudar, type CartaoAjuste, type MudancaConfig, type MudancaConta } from './ajustes';
 
 const colunasConfig = {
   renda: userSetting.rendaDeclarada,
   meta: userSetting.metaPoupanca,
-  fora: userSetting.gastoForaCartao,
   modeloIa: userSetting.modeloIa,
   tetoIaUsd: userSetting.tetoIaUsd,
 };
 
-type LinhaConfig = { renda: string | null; meta: string; fora: string; modeloIa: string; tetoIaUsd: string | null };
+type LinhaConfig = { renda: string | null; meta: string; modeloIa: string; tetoIaUsd: string | null };
 
 function configCompleta(linha: LinhaConfig | undefined) {
   return {
@@ -34,7 +33,6 @@ export async function salvarConfig(userId: string, m: MudancaConfig) {
   const campos: Partial<typeof userSetting.$inferInsert> = {};
   if (m.renda !== undefined) campos.rendaDeclarada = m.renda === null ? null : m.renda.toFixed(2);
   if (m.metaPoupanca !== undefined) campos.metaPoupanca = m.metaPoupanca.toFixed(2);
-  if (m.foraCartao !== undefined) campos.gastoForaCartao = m.foraCartao.toFixed(2);
   // vazio volta ao modelo do .env; a coluna é not null
   if (m.modeloIa !== undefined) campos.modeloIa = m.modeloIa ?? env.OPENROUTER_MODEL;
   if (m.tetoIaUsd !== undefined) campos.tetoIaUsd = m.tetoIaUsd === null ? null : m.tetoIaUsd.toFixed(2);
@@ -52,7 +50,7 @@ export async function salvarConta(userId: string, id: string, m: MudancaConta) {
   const [linha] = await db
     .update(account)
     .set(m)
-    .where(and(eq(account.id, id), eq(account.userId, userId), eq(account.kind, 'cartao_credito')))
+    .where(and(eq(account.id, id), eq(account.userId, userId), inArray(account.kind, tiposDeContaQuePodemMudar(m))))
     .returning({
       id: account.id,
       apelido: account.apelido,
@@ -81,5 +79,14 @@ export async function listarCartoes(userId: string): Promise<CartaoAjuste[]> {
     .leftJoin(statement, eq(statement.accountId, account.id))
     .where(and(eq(account.userId, userId), eq(account.kind, 'cartao_credito')))
     .groupBy(account.id, institution.nome)
+    .orderBy(asc(nomeDaConta), asc(account.last4));
+}
+
+export async function listarContasCorrentes(userId: string) {
+  return db
+    .select({ id: account.id, banco: nomeDaConta, last4: account.last4, apelido: account.apelido })
+    .from(account)
+    .innerJoin(institution, eq(institution.id, account.institutionId))
+    .where(and(eq(account.userId, userId), eq(account.kind, 'conta_corrente'), eq(account.ativo, true)))
     .orderBy(asc(nomeDaConta), asc(account.last4));
 }

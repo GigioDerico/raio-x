@@ -39,7 +39,7 @@ export default function ColunasPrevisto({ p, cfg, hrefAjustes }: Props): React.J
           <>
             <span className="sub">informe a renda prevista para calcular o teto</span>
             <p className="prev-vazio">
-              Com a renda e a meta de poupança preenchidas, eu mostro quanto o cartão pode consumir, quanto sobra para as
+              Com a renda e a meta de poupança preenchidas, eu mostro quanto pode ir para gastos, quanto sobra para as
               escolhas do mês e quanto seria preciso cortar.
             </p>
             <Link href={hrefAjustes} className="botao">Informar renda em Ajustes</Link>
@@ -48,7 +48,6 @@ export default function ColunasPrevisto({ p, cfg, hrefAjustes }: Props): React.J
           <>
             <span className="sub">
               guardando {cfg.metaPoupanca}% de {moeda0(cfg.renda)}
-              {cfg.foraCartao ? ` e tirando ${moeda0(cfg.foraCartao)} de gastos fora do cartão` : ''}
             </span>
             <span className="prev-val">{moeda0(r.teto)}</span>
             <div className="prev-bar" aria-hidden="true">
