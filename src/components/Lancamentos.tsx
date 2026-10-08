@@ -299,6 +299,8 @@ export default function Lancamentos({ mes, contas, categoriaInicial, recarga, ro
 
   function trocarAba(nova: 'gasto' | 'fora') {
     if (nova === aba) return;
+    // a seleção da outra aba não aparece na lista: marcar em lote mexeria no que não se vê
+    setSelecao(new Set());
     // o estabelecimento (total de todos os meses, Renomear) e a categoria do
     // filtro são de gasto: levados para a outra aba, a lista sairia vazia ou o
     // total diria outra coisa. A busca é só texto e vale nas duas

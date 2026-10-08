@@ -119,7 +119,8 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
 
 /** O N do alternador "Não conta (N)": débitos fora dos totais no recorte. */
 export async function contarNaoConta(userId: string, f: { mes?: string | null; accountIds?: string[] }) {
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), eq(txn.papel, 'fora'), gt(txn.valor, '0')];
+  // o mesmo recorte de `listarTxn` na aba "Não conta", senão o N não bate com a lista
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'fora'), gt(txn.valor, '0')];
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
   if (f.accountIds?.length) cond.push(inArray(txn.accountId, f.accountIds));
   const [linha] = await db
@@ -504,7 +505,7 @@ async function aprenderPapel(userId: string, chaves: readonly string[], regra: '
 
 /**
  * A marcação do dono (6.1): grava `papel` como manual — nenhum sync a desfaz —,
- * ensina a regra da origem e a leva às linhas automáticas da mesma origem.
+ * ensina a regra da descrição e a leva às linhas automáticas da mesma descrição.
  * Só conta corrente, e só o papel que cabe no sinal: o resto dos `ids` é pulado.
  * Pix para pessoa física é marcado mas não ensina nada (`podeAprender`).
  */
@@ -563,6 +564,7 @@ export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
             isNull(txn.excluidoEm),
             eq(txn.papelFonte, 'auto'),
             eq(txn.pessoaFisica, false),
+            inArray(txn.papel, origens),
             inArray(txn.accountId, contasCorrentes(userId)),
           ),
         )

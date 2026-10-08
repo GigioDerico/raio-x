@@ -45,15 +45,17 @@ export function regraDoPapel(papel: Papel): 'renda' | 'fora' | null {
 }
 
 /**
- * De que papel saem as outras linhas automáticas da mesma origem quando o dono
- * marca uma. Voltar a gasto não mexe nelas: o `fora` automático pode ter vindo
- * do mapeamento (pagamento de fatura, aplicação), não de uma regra.
+ * De que papel saem as outras linhas automáticas da mesma descrição quando o
+ * dono marca uma. Voltar também as leva: com a chave exata, as irmãs são a mesma
+ * descrição, e o que a regra mudou nelas a regra desfeita devolve. O sinal
+ * (`papelAceito`) separa o crédito do débito — um `fora` de crédito volta a
+ * entrada, não a gasto.
  */
 export function origensDoPapel(papel: Papel): Papel[] {
   if (papel === 'renda') return ['entrada'];
-  if (papel === 'entrada') return ['renda'];
+  if (papel === 'entrada') return ['renda', 'fora'];
   if (papel === 'fora') return ['gasto', 'entrada'];
-  return [];
+  return ['fora'];
 }
 
 export type LinhaEntrada = {
@@ -95,5 +97,5 @@ export function textoDoPapel(papel: Papel, outros: number, aprendeu = true): str
   if (papel === 'renda') return outros > 0 ? `Marcado como renda${junto}. Os próximos já chegam marcados.` : 'Marcado como renda. Os próximos da mesma origem já chegam marcados.';
   if (papel === 'fora') return `Fora dos totais${junto}. Os próximos também ficam fora.`;
   if (papel === 'entrada') return `Desmarcado${junto}. Os próximos chegam para você marcar.`;
-  return 'Volta a contar como gasto.';
+  return `Volta a contar como gasto${junto}.`;
 }

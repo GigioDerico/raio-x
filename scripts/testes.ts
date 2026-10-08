@@ -906,10 +906,10 @@ async function main() {
   // o prefixo impede que a regra de papel e a de categoria caiam na mesma linha
   checar('chave da regra de papel tem prefixo e nunca é chave de categoria', chaveDaRegraDePapel('PAGAMENTO DE BOLETO BANCO PAN').startsWith(PREFIXO_PAPEL) && !chaveAprendizado('papel: PAGAMENTO').startsWith(PREFIXO_PAPEL));
   checar('regra do papel: renda e fora ensinam; gasto e entrada desfazem', regraDoPapel('renda') === 'renda' && regraDoPapel('fora') === 'fora' && regraDoPapel('gasto') === null && regraDoPapel('entrada') === null);
-  checar('origens: renda leva entradas; desmarcar renda devolve as renda automáticas',
-    JSON.stringify(origensDoPapel('renda')) === JSON.stringify(['entrada']) && JSON.stringify(origensDoPapel('entrada')) === JSON.stringify(['renda']));
-  checar('origens: "não conta" leva gasto e entrada; voltar a gasto não mexe nas outras',
-    JSON.stringify(origensDoPapel('fora')) === JSON.stringify(['gasto', 'entrada']) && origensDoPapel('gasto').length === 0);
+  checar('origens: renda leva entradas; desmarcar devolve as renda e as fora automáticas',
+    JSON.stringify(origensDoPapel('renda')) === JSON.stringify(['entrada']) && JSON.stringify(origensDoPapel('entrada')) === JSON.stringify(['renda', 'fora']));
+  checar('origens: "não conta" leva gasto e entrada; voltar a gasto devolve as fora automáticas',
+    JSON.stringify(origensDoPapel('fora')) === JSON.stringify(['gasto', 'entrada']) && JSON.stringify(origensDoPapel('gasto')) === JSON.stringify(['fora']));
 
   const ent = (id: string, valor: string, papel: LinhaEntrada['papel']): LinhaEntrada => ({ id, data: '2026-09-05', valor, nome: `ORIGEM ${id}`, conta: 'Banco conta ••1234', papel, pessoaFisica: false });
   const blocos = blocosDeEntradas([ent('a', '-100.00', 'entrada'), ent('b', '-5000.00', 'renda'), ent('c', '-900.00', 'entrada'), ent('d', '-300.00', 'fora'), ent('e', '-1000.00', 'renda')]);
@@ -920,6 +920,7 @@ async function main() {
   checar('aviso: renda com outros da mesma origem', textoDoPapel('renda', 3) === 'Marcado como renda, com mais 3 da mesma origem. Os próximos já chegam marcados.');
   checar('aviso: renda sozinho', textoDoPapel('renda', 0) === 'Marcado como renda. Os próximos da mesma origem já chegam marcados.');
   checar('aviso: não conta', textoDoPapel('fora', 1) === 'Fora dos totais, com mais 1 da mesma origem. Os próximos também ficam fora.');
+  checar('aviso: voltar a gasto com outros da mesma origem', textoDoPapel('gasto', 2) === 'Volta a contar como gasto, com mais 2 da mesma origem.');
   checar('aviso: voltar', textoDoPapel('gasto', 0) === 'Volta a contar como gasto.' && textoDoPapel('entrada', 2) === 'Desmarcado, com mais 2 da mesma origem. Os próximos chegam para você marcar.');
   // Pix para pessoa física é marcado mas não ensina regra: o aviso não promete os próximos
   checar('aviso: sem aprender não promete os próximos', textoDoPapel('renda', 0, false) === 'Marcado como renda.' && textoDoPapel('fora', 0, false) === 'Fora dos totais.' && textoDoPapel('entrada', 0, false) === 'Desmarcado.');
