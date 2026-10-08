@@ -239,8 +239,10 @@ export async function categorizarEmLote(userId: string, ids: string[], categoria
 /**
  * Leva a categoria a todos os lançamentos com o mesmo nome na tela de algum dos
  * `ids` (pedido do dono, 3.8): trocar "Alane Ferreira" num mês troca nos outros.
- * Pagamento de fatura e excluído ficam fora. Devolve o update para ir no mesmo
- * batch do alterado — ou muda tudo, ou nada.
+ * Pagamento de fatura, excluído e o que não é gasto (crédito, renda, "não
+ * conta" da conta corrente) ficam fora: categoria é coisa de gasto, e um Pix
+ * recebido de alguém com o mesmo nome não pode virar "Mercado". Devolve o
+ * update para ir no mesmo batch do alterado — ou muda tudo, ou nada.
  */
 function mesmaCategoriaPeloNome(userId: string, ids: string[], categoryId: number | null) {
   // excluído fora também aqui: o update do alterado não o toca (a rota responde
@@ -257,6 +259,7 @@ function mesmaCategoriaPeloNome(userId: string, ids: string[], categoryId: numbe
         eq(txn.userId, userId),
         isNull(txn.excluidoEm),
         ne(txn.tipo, 'pagamento'),
+        eq(txn.papel, 'gasto'),
         notInArray(txn.id, ids),
         sql`${chaveDoNomeSql} in ${nomes}`,
       ),
@@ -267,7 +270,9 @@ function mesmaCategoriaPeloNome(userId: string, ids: string[], categoryId: numbe
 /**
  * Total de um estabelecimento em todos os meses, nos cartões do filtro. Em SQL e
  * não somando a lista: ela tem limite, e o total de anos de compras passaria dele.
- * As exclusões são as de `listarTxn`, senão os dois números não conversam.
+ * As exclusões são as de `listarTxn` — inclusive só `papel = 'gasto'`, senão o
+ * total somaria o crédito da conta com o mesmo nome —, ou os dois números não
+ * conversam.
  */
 export async function totalDoNome(userId: string, nome: string, accountIds?: string[]): Promise<number> {
   const cond = [
@@ -275,6 +280,7 @@ export async function totalDoNome(userId: string, nome: string, accountIds?: str
     isNull(txn.excluidoEm),
     eq(txn.suspeitoDuplicado, false),
     ne(txn.tipo, 'pagamento'),
+    eq(txn.papel, 'gasto'),
     sql`${chaveDoNomeSql} = ${chaveDoNome(nome)}`,
   ];
   if (accountIds?.length) cond.push(inArray(txn.accountId, accountIds));
@@ -291,13 +297,14 @@ const nomeNaTelaSql = sql<string>`btrim(coalesce(nullif(${txn.apelido}, ''), nul
 
 /**
  * Os nomes que o datalist do Renomear oferece: um por chave (a grafia é a
- * menor, só para ser estável), em ordem alfabética.
+ * menor, só para ser estável), em ordem alfabética. Só de gasto: é o que o
+ * Renomear alcança.
  */
 export async function nomesNaTela(userId: string): Promise<string[]> {
   const linhas = await db
     .select({ nome: sql<string>`min(${nomeNaTelaSql})` })
     .from(txn)
-    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento')))
+    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')))
     .groupBy(chaveDoNomeSql)
     .orderBy(chaveDoNomeSql)
     .limit(3000);
@@ -313,7 +320,8 @@ export async function nomesNaTela(userId: string): Promise<string[]> {
  */
 export async function renomearEstabelecimento(userId: string, de: string, para: string) {
   const chaveDe = chaveDoNome(de);
-  const base = [eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento')];
+  // só gasto: o crédito e o "não conta" de mesmo nome não são o estabelecimento que se renomeia
+  const base = [eq(txn.userId, userId), isNull(txn.excluidoEm), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
 
   const contagens = await db
     .select({

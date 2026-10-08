@@ -38,6 +38,7 @@ export async function linhasParaCsv(userId: string): Promise<LinhaCsv[]> {
       valor: txn.valor,
       cartaoApelido: account.apelido,
       fonte: txn.fonte,
+      papel: txn.papel,
     })
     .from(txn)
     .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId)))

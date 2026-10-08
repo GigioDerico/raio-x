@@ -17,11 +17,15 @@ export type LinhaCsv = {
   valor: number;
   cartaoApelido: string | null;
   fonte: string;
+  papel: string;
 };
 
 const COLUNAS = [
   'mes_fatura', 'banco', 'cartao', 'data', 'estabelecimento_na_fatura', 'meu_nome',
   'categoria', 'parcela', 'tipo', 'valor', 'cartao_apelido', 'fonte',
+  // no fim, para as colunas do app antigo ficarem onde estavam; o CSV é tudo, e
+  // sem o papel o crédito e o "não conta" da conta corrente pareceriam estorno e gasto
+  'papel',
 ];
 
 // texto vindo de fatura é de terceiros: "=HYPERLINK(...)" viraria fórmula no Excel
@@ -45,6 +49,7 @@ export function montarCsv(linhas: readonly LinhaCsv[]): string {
       celula(l.valor.toFixed(2).replace('.', ',')),
       texto(l.cartaoApelido),
       texto(l.fonte),
+      texto(l.papel),
     ].join(';'),
   );
   return '﻿' + [COLUNAS.map(celula).join(';'), ...corpo].join('\r\n');

@@ -1132,12 +1132,13 @@ async function main() {
   const linhaCsv = (o: Partial<LinhaCsv> = {}): LinhaCsv => ({
     mes: '2026-09', banco: 'Itaú', cartao: '1111', data: '2026-09-03', desc: 'IFOOD *RESTAURANTE', limpa: null, apelido: null,
     categoria: 'Restaurantes & Delivery', parcelaN: null, totalParcelas: null, tipo: 'escolha', valor: 120.5,
-    cartaoApelido: 'Itaú - Azul', fonte: 'pdf', ...o,
+    cartaoApelido: 'Itaú - Azul', fonte: 'pdf', papel: 'gasto', ...o,
   });
-  const csv = montarCsv([linhaCsv(), linhaCsv({ desc: 'Loja "Boa"', apelido: 'Presente', parcelaN: 3, totalParcelas: 10, tipo: 'parcela', valor: 300 }), linhaCsv({ desc: '=HYPERLINK("http://x")', valor: -30, fonte: 'pluggy' })]);
+  const csv = montarCsv([linhaCsv(), linhaCsv({ desc: 'Loja "Boa"', apelido: 'Presente', parcelaN: 3, totalParcelas: 10, tipo: 'parcela', valor: 300 }), linhaCsv({ desc: '=HYPERLINK("http://x")', valor: -30, fonte: 'pluggy' }), linhaCsv({ desc: 'PIX RECEBIDO', valor: -5000, fonte: 'pluggy', papel: 'renda', cartao: '3456', tipo: 'escolha' })]);
   const linhasCsv = csv.split('\r\n');
-  checar('csv começa com BOM e cabeçalho do legado', csv.startsWith('﻿') && linhasCsv[0] === '﻿"mes_fatura";"banco";"cartao";"data";"estabelecimento_na_fatura";"meu_nome";"categoria";"parcela";"tipo";"valor";"cartao_apelido";"fonte"');
-  checar('csv linha simples', linhasCsv[1] === '"2026-09";"Itaú";"1111";"2026-09-03";"IFOOD *RESTAURANTE";"IFOOD *RESTAURANTE";"Restaurantes & Delivery";"";"escolha";"120,50";"Itaú - Azul";"pdf"');
+  checar('csv começa com BOM e cabeçalho do legado', csv.startsWith('﻿') && linhasCsv[0] === '﻿"mes_fatura";"banco";"cartao";"data";"estabelecimento_na_fatura";"meu_nome";"categoria";"parcela";"tipo";"valor";"cartao_apelido";"fonte";"papel"');
+  checar('csv linha simples', linhasCsv[1] === '"2026-09";"Itaú";"1111";"2026-09-03";"IFOOD *RESTAURANTE";"IFOOD *RESTAURANTE";"Restaurantes & Delivery";"";"escolha";"120,50";"Itaú - Azul";"pdf";"gasto"');
+  checar('csv leva o papel da conta corrente', linhasCsv[4]!.endsWith('"-5000,00";"Itaú - Azul";"pluggy";"renda"') && linhasCsv.length === 5);
   checar('csv aspas dobradas, apelido e parcela', linhasCsv[2]!.includes('"Loja ""Boa"""') && linhasCsv[2]!.includes('"Presente"') && linhasCsv[2]!.includes('"3/10"') && linhasCsv[2]!.includes('"300,00"'));
   checar('csv neutraliza fórmula em texto e não em valor', linhasCsv[3]!.includes(`"'=HYPERLINK(""http://x"")"`) && linhasCsv[3]!.includes('"-30,00"') && !linhasCsv[3]!.includes(`"'-30,00"`));
   checar('csv guarda também +, @, tab e CR no início', ['+1', '@x', '\tx', '\rx', '-x'].every((s) => montarCsv([linhaCsv({ desc: s })]).includes(`"'${s}`)));
