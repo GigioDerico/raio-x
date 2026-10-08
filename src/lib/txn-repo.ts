@@ -60,7 +60,8 @@ export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.k
 
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
-  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento')];
+  // crédito, renda e o que não conta não são gasto: a 6.1 os mostra em Entradas e no "Não conta"
+  const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento'), eq(txn.papel, 'gasto')];
 
   if (f.mes) cond.push(sql`${mesDaTxn} = ${f.mes}`);
   // os ids vêm do cliente; o join da conta abaixo confirma a posse
@@ -95,7 +96,7 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
       pendente: txn.pendente,
       contaApelido: account.apelido,
       contaLast4: account.last4,
-      contaBanco: nomeDaConta,
+      contaBanco: rotuloDaConta,
     })
     .from(txn)
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
@@ -124,16 +125,16 @@ export const opcoesDoFiltro = cache(async (userId: string): Promise<OpcoesFiltro
     .innerJoin(account, and(eq(account.id, txn.accountId), eq(account.userId, userId)))
     .leftJoin(statement, and(eq(statement.id, txn.statementId), eq(statement.accountId, txn.accountId)))
     // suspeito fica fora dos totais; um mês só de suspeitos apareceria vazio
-    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false)))
+    .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), eq(txn.papel, 'gasto')))
     .orderBy(desc(mesDaTxn));
 
   const contas = await db
-    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: nomeDaConta })
+    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: rotuloDaConta })
     .from(account)
     .innerJoin(institution, eq(institution.id, account.institutionId))
-    // conta corrente e poupança do Pluggy esperam a fatia 6: o filtro é de cartões
-    .where(and(eq(account.userId, userId), eq(account.ativo, true), eq(account.kind, 'cartao_credito')))
-    .orderBy(asc(nomeDaConta), asc(account.last4));
+    // poupança e conta de pagamento continuam fora até alguém precisar delas
+    .where(and(eq(account.userId, userId), eq(account.ativo, true), inArray(account.kind, ['cartao_credito', 'conta_corrente'])))
+    .orderBy(asc(rotuloDaConta), asc(account.last4));
 
   return {
     meses: meses.map((m) => m.mes),

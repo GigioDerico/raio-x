@@ -18,14 +18,14 @@ import {
 } from '@/db/schema';
 import { env } from '@/env';
 import type { LinhaCsv } from './csv';
-import { mesDaTxn, nomeDaConta } from './txn-repo';
+import { mesDaTxn, rotuloDaConta } from './txn-repo';
 
 /** Todos os cartões e meses, sem excluídos nem suspeitos — o filtro da tela não vale aqui. */
 export async function linhasParaCsv(userId: string): Promise<LinhaCsv[]> {
   const linhas = await db
     .select({
       mes: mesDaTxn,
-      banco: nomeDaConta,
+      banco: rotuloDaConta,
       cartao: account.last4,
       data: txn.data,
       desc: txn.descOrigem,
@@ -47,7 +47,7 @@ export async function linhasParaCsv(userId: string): Promise<LinhaCsv[]> {
     .leftJoin(category, eq(category.id, txn.categoryId))
     .leftJoin(installmentPlan, and(eq(installmentPlan.id, txn.installmentId), eq(installmentPlan.accountId, txn.accountId)))
     .where(and(eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false)))
-    .orderBy(asc(mesDaTxn), asc(nomeDaConta), asc(txn.data), asc(txn.id));
+    .orderBy(asc(mesDaTxn), asc(rotuloDaConta), asc(txn.data), asc(txn.id));
   return linhas.map((l) => ({ ...l, valor: Number(l.valor) }));
 }
 
