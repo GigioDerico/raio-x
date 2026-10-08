@@ -47,15 +47,44 @@ export function lotarParaIA(
 }
 
 /**
- * O que a IA lê no lugar de um Pix ou TED para pessoa física. Decisão do dono:
- * nem a descrição do banco nem o apelido que ele mesmo deu saem — o apelido de
- * uma pessoa costuma ser o nome dela. Valor, data e categoria continuam.
+ * Começo do que a IA lê no lugar de um lançamento para pessoa física — Pix,
+ * TED, DOC ou transferência, na conta ou no cartão. Decisão do dono: nem a
+ * descrição do banco, nem o nome limpo, nem o apelido que ele mesmo deu saem —
+ * o apelido de uma pessoa costuma ser o nome dela. Valor, data e categoria
+ * continuam. Cada pessoa ganha uma letra (`rotuloDaPessoa`).
  */
-export const PESSOA_FISICA_PARA_IA = 'Pix para pessoa física';
+export const PESSOA_FISICA_PARA_IA = 'Pix pessoa';
 
-function lancParaIA<T extends Lanc>(l: T): T {
+/**
+ * A, B, …, Z, AA, AB… Letra e não número: `normDesc`, que agrupa recorrentes e
+ * fixas, tira os dígitos e corta em três palavras — "Pix pessoa 1" e "Pix
+ * pessoa 2" virariam a mesma fixa.
+ */
+export function rotuloDaPessoa(i: number): string {
+  let letras = '';
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) letras = String.fromCharCode(65 + ((n - 1) % 26)) + letras;
+  return `${PESSOA_FISICA_PARA_IA} ${letras}`;
+}
+
+/**
+ * Troca o nome de cada lançamento privado pelo rótulo da pessoa. A pessoa é a
+ * chave com que os cálculos agrupam (`normDesc(nomeExibido(…, false))`, em
+ * composicao.ts), lida no contexto da tela: duas pessoas continuam duas e a
+ * mesma pessoa continua uma, e fixas, composição e projeção que a IA lê são as
+ * da tela. As chaves vão em ordem para a mesma tela dar o mesmo prompt na página
+ * e na rota (o hash do cache é do prompt); uma pessoa nova no recorte pode
+ * trocar as letras das outras, e o cache refaz uma vez.
+ */
+function mascaraDePessoas(ctx: Contexto): <T extends Lanc>(l: T) => T {
+  const chave = (l: Lanc) => normDesc(nomeExibido(ctx, l, false));
+  const chaves = [...new Set(ctx.faturas.flatMap((f) => f.lancamentos.filter((l) => l.privado).map(chave)))].sort();
+  const rotulos = new Map(chaves.map((k, i) => [k, rotuloDaPessoa(i)]));
   // o apelido fixo faz `nomeExibido` parar nele, sem consultar os aprendidos
-  return l.privado ? { ...l, desc: PESSOA_FISICA_PARA_IA, limpa: null, apelido: PESSOA_FISICA_PARA_IA } : l;
+  return (l) => {
+    if (!l.privado) return l;
+    const rotulo = rotulos.get(chave(l)) ?? PESSOA_FISICA_PARA_IA;
+    return { ...l, desc: rotulo, limpa: null, apelido: rotulo };
+  };
 }
 
 /**
@@ -64,16 +93,19 @@ function lancParaIA<T extends Lanc>(l: T): T {
  * não o vê.
  *
  * Os apelidos aprendidos cuja chave é a descrição de um lançamento privado (ou
- * parecida com ela, que é como `nomeExibido` os acha) também saem: o apelido
- * "Maria" aprendido de um Pix voltaria por outro lançamento parecido.
+ * parecida com ela, que é como `nomeExibido` os acha) também saem: um apelido
+ * "Maria" aprendido antes da 6.0 voltaria por outro lançamento parecido. Só os
+ * privados do recorte são vistos aqui; regra nova vinda de um privado fora
+ * dele não existe, porque o privado não ensina (`podeAprender`, descricao.ts).
  */
 export function contextoParaIA(ctx: Contexto): Contexto {
   const privados = ctx.faturas.flatMap((f) => f.lancamentos.filter((l) => l.privado).map((l) => l.desc));
   if (!privados.length) return ctx;
+  const mascarar = mascaraDePessoas(ctx);
   const apelidos = Object.fromEntries(
     Object.entries(ctx.apelidos).filter(([k]) => !privados.some((d) => normDesc(k) === normDesc(d) || parecido(k, d))),
   );
-  return { ...ctx, apelidos, faturas: ctx.faturas.map((f) => ({ ...f, lancamentos: f.lancamentos.map(lancParaIA) })) };
+  return { ...ctx, apelidos, faturas: ctx.faturas.map((f) => ({ ...f, lancamentos: f.lancamentos.map(mascarar) })) };
 }
 
 /**
@@ -160,7 +192,8 @@ function nomeParaIA(ctx: Contexto, l: Parameters<typeof nomeExibido>[1]): string
  */
 export function promptResumo(ctxTela: Contexto, dTela: DadosResumo): string {
   const ctx = contextoParaIA(ctxTela);
-  const d = { ...dTela, linhas: dTela.linhas.map(lancParaIA) };
+  // os maiores lançamentos com a mesma letra que a pessoa tem no contexto
+  const d = { ...dTela, linhas: dTela.linhas.map(mascaraDePessoas(ctxTela)) };
   const L: string[] = [];
   L.push('Mês da fatura: ' + (d.m ? rotuloMes(d.m) : 'todos os meses carregados'));
   L.push('Cartões: ' + (d.porCartao.map((c) => `${c.nome} ${moeda(c.total)}`).join(', ') || 'nenhum'));

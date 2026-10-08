@@ -48,7 +48,7 @@ import type { Projecao } from '../src/lib/calculos/parcelas';
 import { montarPrevisto, previsto } from '../src/lib/calculos/previsto';
 import { limparFixos, respostaTemCategorias, validarPrefs } from '../src/lib/plano-prefs';
 import { fraseSemPlano, subtituloPlano, notasDoPlano, feitoPara, planoTerminou } from '../src/lib/plano-texto';
-import { contextoParaIA, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
+import { contextoParaIA, rotuloDaPessoa, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
 import { chaveRecorte, dadosResumo, lerResumo, lerTexto } from '../src/lib/calculos/resumo';
 import { markdownLeve } from '../src/lib/markdown-leve';
 import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/lib/ndjson';
@@ -56,7 +56,7 @@ import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuar
 import { lerLinhaSse } from '../src/lib/sse';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
-import { recorrentesFixas } from '../src/lib/calculos/composicao';
+import { composicaoMes, recorrentesFixas } from '../src/lib/calculos/composicao';
 import { casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica, escolherInstituicao, faturaDaBill, faturasAbertasDosRecebidos, lancamentoDaConta, lancamentoDoPluggy, mesDaFaturaAberta, mesesDasFaturas, normalizarNomeBanco, papelDaConta, statusDoItem, type ContaExistente, type Recebido } from '../src/lib/pluggy/mapear';
 import { janelaAtualizar, janelaInicial, precisaSincronizar } from '../src/lib/pluggy/janela';
 import { avisoDasConexoes, conexoesOrfas, estadoDaConexao, haQuanto } from '../src/lib/pluggy/estado';
@@ -1268,21 +1268,49 @@ async function main() {
   })();
   const semMaria = (s: string) => !s.includes('MARIA') && !s.includes('Maria');
   const mascarado = contextoParaIA(ctxPF);
-  checar('contextoParaIA troca descrição e apelido do privado', semMaria(JSON.stringify(mascarado)) && mascarado.faturas.some((f) => f.lancamentos.some((l) => l.privado && l.desc === PESSOA_FISICA_PARA_IA && l.apelido === PESSOA_FISICA_PARA_IA && l.val === 900 && l.cat === 'Serviços & Profissional')));
+  checar('contextoParaIA troca descrição e apelido do privado', semMaria(JSON.stringify(mascarado)) && mascarado.faturas.some((f) => f.lancamentos.some((l) => l.privado && l.desc === rotuloDaPessoa(0) && l.apelido === rotuloDaPessoa(0) && l.val === 900 && l.cat === 'Serviços & Profissional')));
   checar('contextoParaIA não mexe no contexto da tela', JSON.stringify(ctxPF).includes('PIX TRANSF MARIA SILVA') && ctxPF.apelidos['PIX TRANSF MARIA SILVA'] === 'Maria');
   checar('contextoParaIA sem privado devolve o mesmo contexto', contextoParaIA(ctxG) === ctxG);
   const pPF = promptResumo(ctxPF, dadosResumo(ctxPF));
-  checar('resumo não leva o nome do Pix para pessoa física', semMaria(pPF) && pPF.includes(`${PESSOA_FISICA_PARA_IA} ${moeda(900)}`));
+  checar('resumo não leva o nome do Pix para pessoa física', semMaria(pPF) && pPF.includes(`${rotuloDaPessoa(0)} ${moeda(900)}`));
   checar('resumo mantém o nome do que não é privado', pPF.includes(`PADARIA PAO QUENTE ${moeda(850)}`));
   const dPF = dadosDiagnostico(ctxPF, false, null);
-  checar('diagnóstico não leva o nome do Pix para pessoa física', semMaria(dPF) && dPF.includes(`${PESSOA_FISICA_PARA_IA} ${moeda(900)}`));
+  checar('diagnóstico não leva o nome do Pix para pessoa física', semMaria(dPF) && dPF.includes(`${rotuloDaPessoa(0)} ${moeda(900)}`));
   checar('diagnóstico mantém o nome do que não é privado', dPF.includes('PADARIA PAO QUENTE'));
   checar('conversa não leva o nome do Pix para pessoa física', mensagensConversa(dPF, null, [], 'quem é a maior?').every((m) => semMaria(m.content)));
   // a fixa existe no contexto da tela com o nome: sem a máscara, o plano o levaria
   checar('fixa do Pix aparece com o nome na tela', recorrentesFixas(ctxPF).some((r) => r.desc === 'Maria' || r.desc.includes('MARIA')));
   const mtPF = metasDoPlano(ctxPF, PREFS_PADRAO)!;
   const plPF = promptPlano(mtPF, PREFS_PADRAO, ctxPF);
-  checar('plano não leva o nome do Pix para pessoa física nas fixas', semMaria(plPF) && plPF.includes('PIX PARA PESSOA'));
+  checar('plano não leva o nome do Pix para pessoa física nas fixas', semMaria(plPF) && plPF.includes(`${normDesc(rotuloDaPessoa(0))}:`));
+
+  // ---- uma letra por pessoa (6.0, I3) ---------------------------------------
+  checar('rótulo da pessoa: letras, sem dígito', [0, 1, 25, 26, 27, 701, 702].map(rotuloDaPessoa).join('|') === 'Pix pessoa A|Pix pessoa B|Pix pessoa Z|Pix pessoa AA|Pix pessoa AB|Pix pessoa ZZ|Pix pessoa AAA');
+  checar('rótulos diferentes já nas 3 palavras de normDesc', new Set(Array.from({ length: 60 }, (_, i) => normDesc(rotuloDaPessoa(i)))).size === 60);
+  // duas pessoas todo mês (fixas) e uma de uma vez só: com um texto único para
+  // todas, as duas fixas viravam uma e a IA via outra composição que a da tela
+  const ctxPessoas = (() => {
+    const c = contexto(null, faturasDeTeste(), { renda: 20000, metaPoupanca: 20, foraCartao: 0 });
+    for (const f of c.faturas.filter((x) => x.banco === 'Itaú' && x.mesRef >= '2026-04')) {
+      f.lancamentos.push(
+        { desc: 'PIX TRANSF MARIA SILVA', apelido: null, val: 900, cat: 'Serviços & Profissional', parc: null, tipo: 'compra', privado: true },
+        { desc: 'TED FULANO DE TAL', apelido: null, val: 700, cat: 'Casa & Contas', parc: null, tipo: 'compra', privado: true },
+      );
+      if (f.mesRef === '2026-05') f.lancamentos.push({ desc: 'PIX BELTRANO SOUZA', apelido: null, val: 500, cat: 'Outros', parc: null, tipo: 'compra', privado: true });
+    }
+    return c;
+  })();
+  const mascPessoas = contextoParaIA(ctxPessoas);
+  const fixasTela = recorrentesFixas(ctxPessoas);
+  const fixasIA = recorrentesFixas(mascPessoas);
+  const pessoasNasFixas = fixasIA.filter((r) => r.desc.startsWith(PESSOA_FISICA_PARA_IA));
+  checar('duas pessoas mensais são duas fixas no mascarado, a avulsa nenhuma', pessoasNasFixas.length === 2 && new Set(pessoasNasFixas.map((r) => r.desc)).size === 2 && pessoasNasFixas.every((r) => r.medio === 900 || r.medio === 700));
+  checar('fixas do mascarado batem com as da tela', fixasIA.length === fixasTela.length && JSON.stringify(fixasIA.map((r) => [r.medio, r.meses, r.cat])) === JSON.stringify(fixasTela.map((r) => [r.medio, r.meses, r.cat])));
+  checar('composição do mascarado bate com a da tela', ['2026-04', '2026-05', '2026-06', null].every((m) => JSON.stringify(composicaoMes(mascPessoas, m)) === JSON.stringify(composicaoMes(ctxPessoas, m))));
+  checar('mascarado sem nome de ninguém', !/MARIA|FULANO|BELTRANO/i.test(JSON.stringify(mascPessoas)));
+  checar('mesma tela, mesmo prompt (hash do cache estável)', promptResumo(ctxPessoas, dadosResumo(ctxPessoas)) === promptResumo(ctxPessoas, dadosResumo(ctxPessoas)) && JSON.stringify(contextoParaIA(ctxPessoas)) === JSON.stringify(mascPessoas));
+  const pPessoas = promptResumo(ctxPessoas, dadosResumo(ctxPessoas));
+  checar('resumo: maiores lançamentos com a letra da pessoa no contexto', !/MARIA|FULANO|BELTRANO/i.test(pPessoas) && mascPessoas.faturas.some((f) => f.lancamentos.some((l) => l.val === 900 && pPessoas.includes(`${l.desc} ${moeda(900)}`))));
 
   checar('pergunta aparada', validarPergunta('  oi  ') === 'oi' && validarPergunta('a'.repeat(LIMITE_PERGUNTA)) !== null);
   checar('pergunta inválida', [undefined, null, 5, '', '   ', 'a'.repeat(LIMITE_PERGUNTA + 1)].every((v) => validarPergunta(v) === null));

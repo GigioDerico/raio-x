@@ -84,11 +84,23 @@ prompt (resumo, diagnóstico, conversa, plano). Por isso o mapeamento é gravado
 depois do sync, diz que a descrição traz o nome de alguém. A coluna chega ao
 `Contexto` dos cálculos como `privado`, e todo construtor de prompt que recebe
 contexto passa por `contextoParaIA` (`src/lib/ia.ts`): o lançamento privado vai
-como `Pix para pessoa física`, com valor, data e categoria, sem a descrição e sem
-apelido — nem o que o dono deu, porque o apelido de uma pessoa costuma ser o nome
-dela. Os apelidos aprendidos com a chave daquela descrição também saem. A tela
-continua mostrando o nome ao dono. `categorizarPendentes` ainda filtra
-`pessoa_fisica = false`, como segunda trava.
+como `Pix pessoa A`, `Pix pessoa B`… (uma letra por pessoa, AA depois de Z), com
+valor, data e categoria, sem a descrição, sem o nome limpo e sem apelido — nem o
+que o dono deu, porque o apelido de uma pessoa costuma ser o nome dela. A pessoa
+é a chave com que os cálculos agrupam (`normDesc` do nome na tela), então fixas,
+composição e projeção que a IA lê são as mesmas da tela; letra e não número
+porque `normDesc` tira dígitos. As letras seguem a ordem das chaves, para a
+página e a rota darem o mesmo prompt (o cache é pelo hash dele). Os apelidos
+aprendidos com a chave daquela descrição também saem. A tela continua mostrando
+o nome ao dono. `categorizarPendentes` ainda filtra `pessoa_fisica = false`,
+como segunda trava.
+
+Lançamento privado não ensina regra (`podeAprender`): a chave de
+`learned_label` são três palavras genéricas no extrato ("PIX ENVIADO CP"), e o
+apelido dado a uma pessoa seria pintado num Pix para empresa, que vai à IA.
+Categoria levada pelo nome (`mesmaCategoriaPeloNome`) só alcança a mesma classe.
+No sync, `pessoa_fisica` só sobe no atualizar/promover, nunca desce; sem
+documento, a categoria de transferência do Pluggy também conta.
 
 ## 2. Telas
 
