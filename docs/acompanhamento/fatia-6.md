@@ -7,7 +7,7 @@ Estado: 6.0 na main; 6.1 concluída (branch `fatia-6.1`, aguardando merge); pró
 | --- | --- | --- | --- |
 | 6.0 | Dados: migração 0013, sync da conta, papel automático, pessoa física fora da IA | concluída | [6.0-dados-conta-corrente.md](6.0-dados-conta-corrente.md) |
 | 6.1 | Lançamentos (alternador, "não conta") | concluída | [6.1-nao-conta-e-entradas.md](6.1-nao-conta-e-entradas.md) |
-| 6.2 | Renda digitada no painel, plano e Previsto; Ajustes sem "gasto fora do cartão" | a fazer | — |
+| 6.2 | Renda digitada no painel, plano e Previsto; Ajustes sem "gasto fora do cartão" | em andamento | [6.2-renda-digitada-e-ajustes.md](6.2-renda-digitada-e-ajustes.md) |
 | 6.3 | Migração 0017: apagar `gasto_fora_cartao` (a renda digitada fica) | a fazer | — |
 
 ## Histórico
