@@ -1,7 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
-import { nomeDaConta } from '@/lib/txn-repo';
+import { nomeDaConta, rotuloDaConta } from '@/lib/txn-repo';
 import { db } from '@/db';
 import { account, connection, connectionStatus, institution } from '@/db/schema';
 import { pluggy } from './cliente';
@@ -241,12 +241,21 @@ export async function desconectar(userId: string, conexaoId: string): Promise<bo
   return true;
 }
 
-/** Cartões de uma conexão, com o rótulo da tela. */
+/**
+ * Cartões e contas correntes de uma conexão, com o rótulo da tela. É a lista
+ * que o "atualizar agora", a carga inicial e o cron percorrem.
+ */
 export async function cartoesDaConexao(userId: string, conexaoId: string): Promise<CartaoConectado[]> {
   const gravados = await db
-    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: nomeDaConta })
+    .select({ id: account.id, apelido: account.apelido, last4: account.last4, banco: rotuloDaConta })
     .from(account)
     .innerJoin(institution, eq(institution.id, account.institutionId))
-    .where(and(eq(account.userId, userId), eq(account.connectionId, conexaoId), eq(account.kind, 'cartao_credito')));
+    .where(
+      and(
+        eq(account.userId, userId),
+        eq(account.connectionId, conexaoId),
+        inArray(account.kind, ['cartao_credito', 'conta_corrente']),
+      ),
+    );
   return gravados.map((g) => ({ id: g.id, nome: (g.apelido || g.banco) + (g.last4 ? ` ••${g.last4}` : '') }));
 }

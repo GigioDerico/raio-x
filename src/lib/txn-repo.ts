@@ -55,6 +55,9 @@ export type FiltroTxn = {
  */
 export const nomeDaConta = sql<string>`coalesce(${account.nomeOrigem}, ${institution.nome})`;
 
+// "Itaú conta" e "Itaú" (cartão) não podem aparecer iguais no filtro, no Hero e na lista
+export const rotuloDaConta = sql<string>`${nomeDaConta} || case when ${account.kind} = 'conta_corrente' then ' conta' else '' end`;
+
 export async function listarTxn(userId: string, f: FiltroTxn = {}) {
   // pagamento de fatura só quita o que já está na lista: mostrá-lo somaria o gasto duas vezes
   const cond = [eq(txn.userId, userId), isNull(txn.excluidoEm), eq(txn.suspeitoDuplicado, false), ne(txn.tipo, 'pagamento')];
