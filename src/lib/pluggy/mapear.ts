@@ -317,15 +317,27 @@ export function mesesDasFaturas(faturas: readonly FaturaMapeada[]): FaturaMapead
 
 // ---- conta corrente (6.0) ---------------------------------------------------
 
-type Documento = { documentNumber?: { type?: string | null; value?: string | null } | null } | null | undefined;
+type Documento = { name?: string | null; documentNumber?: { type?: string | null; value?: string | null } | null } | null | undefined;
 type DadosPagamento = { payer?: Documento; receiver?: Documento } | null;
 
 const dadosPagamento = (t: TransacaoPluggy): DadosPagamento =>
   t.paymentData && typeof t.paymentData === 'object' ? (t.paymentData as DadosPagamento) : null;
 const digitos = (d: Documento) => String(d?.documentNumber?.value ?? '').replace(/\D/g, '');
+const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
 const ENCARGO_CONTA = /\b(IOF|JUROS|MORA|MULTA|TARIFA|ENCARGOS?)\b/i;
-const PAGAMENTO_DE_FATURA = /\bFATURA\b|\bPAG(?:TO|AMENTO)?\s+(?:DE\s+)?CART(?:AO|ÃO)\b/i;
+// "FATURA" sozinha não basta: luz, telefone e internet também mandam fatura
+// ("DEB AUTOMATICO FATURA VIVO"), e seriam tirados do gasto. Só conta como
+// pagamento de cartão quando o cartão aparece junto de pagamento ou de fatura.
+// Lido sobre a descrição sem acento e em maiúsculas (`semAcento`).
+const PAGOU = String.raw`(?:PG|PGTO|PAGTO|PAG|PAGAMENTO|DEB(?:ITO)?\.?\s+AUT\w*)`;
+const PAGAMENTO_DE_FATURA = new RegExp(
+  String.raw`\b${PAGOU}\b.*\bCARTAO\b|\bFATURA\b.*\bCARTAO\b|\bCARTAO\b.*\bFATURA\b|\bCARTAO\s+(?:DE\s+)?CRED`,
+);
+// a categoria do Pluggy vem com sufixo ("Same person transfer - PIX")
+const CATEGORIA_MESMA_PESSOA = /^same person transfer\b/i;
+// sem paymentData, é o que o banco escreve quando o dinheiro vai para outra conta sua
+const MESMA_PESSOA = /\bTRANSF\w*\s+ENTRE\s+CONTAS\b|\bMESMA\s+TITULARIDADE\b/;
 const INVESTIMENTO = /\b(APLICA[CÇ][AÃ]O|APLIC|RESGATE)\b/i;
 const CATEGORIA_INVESTIMENTO = /^(investments?|fixed income|variable income|mutual funds|pension)\b/i;
 const TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSF\w*)\b/i;
@@ -337,10 +349,16 @@ const TRANSFERENCIA = /\b(PIX|TED|DOC|TRANSF\w*)\b/i;
  * memória: nenhum dos dois sai desta função (regra 5).
  */
 export function papelDaConta(t: TransacaoPluggy, valor: number, descOrigem: string): Papel {
-  if (t.operationType === 'PAGAMENTO_FATURA' || t.category === 'Credit card payment' || PAGAMENTO_DE_FATURA.test(descOrigem)) return 'fora';
+  const desc = semAcento(descOrigem);
+  if (t.operationType === 'PAGAMENTO_FATURA' || t.category === 'Credit card payment' || PAGAMENTO_DE_FATURA.test(desc)) return 'fora';
   const d = dadosPagamento(t);
   const pagador = digitos(d?.payer);
-  if (t.category === 'Same person transfer' || (pagador !== '' && pagador === digitos(d?.receiver))) return 'fora';
+  if (
+    (t.category && CATEGORIA_MESMA_PESSOA.test(t.category)) ||
+    MESMA_PESSOA.test(desc) ||
+    (pagador !== '' && pagador === digitos(d?.receiver))
+  )
+    return 'fora';
   if ((t.category && CATEGORIA_INVESTIMENTO.test(t.category)) || INVESTIMENTO.test(descOrigem)) return 'fora';
   return valor > 0 ? 'gasto' : 'entrada';
 }
@@ -361,6 +379,53 @@ export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: st
 }
 
 /**
+ * Tira um nome da descrição sem olhar acento, caixa nem espaço repetido. A
+ * busca é na versão sem acento, mas o corte é na original: o resto da
+ * descrição fica como o banco escreveu.
+ */
+function semNome(desc: string, nome: string | null | undefined): string {
+  const partes = semAcento(nome ?? '').split(/\s+/).filter(Boolean);
+  if (!partes.length) return desc;
+  // cada caractere da original vira um ou mais na comparável; `origem` guarda de onde veio
+  let comparavel = '';
+  const origem: number[] = [];
+  [...desc].reduce((pos, c) => {
+    const base = semAcento(c);
+    comparavel += base;
+    for (let k = 0; k < base.length; k++) origem.push(pos);
+    return pos + c.length;
+  }, 0);
+  origem.push(desc.length);
+  const escapado = partes.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  const re = new RegExp(String.raw`(?<![A-Z0-9])${escapado}(?![A-Z0-9])`, 'g');
+  let saida = '';
+  let ate = 0;
+  for (const m of comparavel.matchAll(re)) {
+    saida += desc.slice(ate, origem[m.index!]);
+    ate = origem[m.index! + m[0].length]!;
+  }
+  // sem o nome na descrição, ela fica exatamente como o banco escreveu
+  return ate === 0 ? desc : (saida + desc.slice(ate)).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * O nome do titular não é gravado (regra 5), mas o banco às vezes o escreve na
+ * descrição ("PIX ENVIADO FULANO ..." de uma conta sua para outra). O
+ * `paymentData` só existe aqui, então é aqui que ele sai: o pagador de um
+ * débito e o recebedor de um crédito são o titular, e quem tem o mesmo
+ * documento do pagador e do recebedor também.
+ */
+function descricaoSemTitular(t: TransacaoPluggy, valor: number, descOrigem: string): string {
+  const d = dadosPagamento(t);
+  const nomes = [valor > 0 ? d?.payer?.name : d?.receiver?.name];
+  const pagador = digitos(d?.payer);
+  if (pagador !== '' && pagador === digitos(d?.receiver)) nomes.push(d?.payer?.name, d?.receiver?.name);
+  const limpa = nomes.reduce<string>((s, n) => semNome(s, n), descOrigem);
+  // só o nome na descrição: o que sobra é o tipo da operação, nunca o nome
+  return limpa || (descOrigem ? 'TRANSFERENCIA' : '');
+}
+
+/**
  * Pluggy → modelo do app, para conta corrente. Mesma convenção do cartão:
  * positivo é dinheiro que sai. O `type` manda sobre o sinal do `amount`, que
  * na conta vem negativo no débito; sem `type`, o sinal invertido.
@@ -369,9 +434,9 @@ export function lancamentoDaConta(t: TransacaoPluggy): Recebido | null {
   if (!t.id || typeof t.amount !== 'number' || !Number.isFinite(t.amount)) return null;
   const data = diaEmSaoPaulo(t.date);
   if (!data || !diaValido(data)) return null;
-  const descOrigem = (t.descriptionRaw || t.description || '').trim();
   const centavos = Math.round(t.amount * 100) / 100;
   const valor = t.type === 'DEBIT' ? Math.abs(centavos) : t.type === 'CREDIT' ? -Math.abs(centavos) : -centavos;
+  const descOrigem = descricaoSemTitular(t, valor, (t.descriptionRaw || t.description || '').trim());
   return {
     pluggyTxnId: t.id,
     data,

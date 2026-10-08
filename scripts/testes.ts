@@ -815,13 +815,18 @@ async function main() {
   checar('conta crédito vira entrada negativa', cCred.valor === -5000 && cCred.papel === 'entrada');
   checar('conta sem type usa o sinal do Pluggy invertido', lancamentoDaConta(txc({ type: undefined, amount: -30 }))!.valor === 30 && lancamentoDaConta(txc({ type: undefined, amount: 30 }))!.valor === -30);
 
+  const papelDe = (d: string, o: Partial<Parameters<typeof lancamentoDaConta>[0]> = {}) => lancamentoDaConta(txc({ amount: -1500, description: d, descriptionRaw: d, ...o }))!.papel;
+  // "PAG FATURA ITAU" saiu daqui: sem a palavra cartão é ambíguo, e conta de consumo também é "fatura"
   checar('conta pagamento de fatura não conta',
-    ['PAGAMENTO FATURA CARTAO', 'PAG FATURA ITAU', 'PAGTO CARTAO CREDITO'].every((d) => lancamentoDaConta(txc({ amount: -1500, description: d, descriptionRaw: d }))!.papel === 'fora') &&
+    ['PAGAMENTO FATURA CARTAO', 'PAG FATURA CARTAO ITAU', 'PGTO CARTAO CREDITO', 'PAGTO CARTAO CREDITO', 'DEB AUT CARTAO CREDITO', 'PG CARTÃO', 'Pagamento de fatura cartão'].every((d) => papelDe(d) === 'fora') &&
     lancamentoDaConta(txc({ category: 'Credit card payment', description: 'X', descriptionRaw: 'X' }))!.papel === 'fora' &&
     lancamentoDaConta(txc({ operationType: 'PAGAMENTO_FATURA' }))!.papel === 'fora');
   checar('conta transferência própria não conta',
     lancamentoDaConta(txc({ description: 'PIX TRANSF', descriptionRaw: 'PIX TRANSF', paymentData: { payer: doc('CPF', CPF_TITULAR), receiver: doc('CPF', '12345678900') } }))!.papel === 'fora' &&
     lancamentoDaConta(txc({ type: 'CREDIT', amount: 300, category: 'Same person transfer' }))!.papel === 'fora');
+  checar('conta de consumo com "fatura" continua gasto', ['DEB AUTOMATICO FATURA VIVO', 'PAGTO FATURA CLARO', 'FATURA ENERGIA', 'COMPRA CARTAO DEB MERCADO'].every((d) => papelDe(d) === 'gasto'));
+  checar('transferência própria pela categoria com sufixo', papelDe('PIX ENVIADO', { category: 'Same person transfer - PIX' }) === 'fora' && papelDe('TED', { type: 'CREDIT', category: 'Same person transfer - TED' }) === 'fora' && papelDe('PIX ENVIADO', { category: 'Transfer - PIX' }) === 'gasto');
+  checar('transferência própria pela descrição', ['TRANSF ENTRE CONTAS', 'TRANSFERENCIA MESMA TITULARIDADE', 'PIX RECEBIDO MESMA TITULARIDADE', 'Transferência entre contas'].every((d) => papelDe(d) === 'fora'));
   checar('conta aplicação e resgate não contam',
     lancamentoDaConta(txc({ description: 'APLICACAO CDB', descriptionRaw: 'APLICACAO CDB' }))!.papel === 'fora' &&
     lancamentoDaConta(txc({ type: 'CREDIT', amount: 1000, description: 'RESGATE CDB', descriptionRaw: 'RESGATE CDB' }))!.papel === 'fora' &&
@@ -840,6 +845,16 @@ async function main() {
   const cPix = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA', ...doc('CNPJ', CNPJ_LOJA) } }))!;
   // o nome da outra ponta pode estar na descrição (é o que o banco escreve); o documento e o nome do titular nunca
   checar('conta não leva documento nem titular', !vazou(cPix));
+  // o banco escreve o nome do titular na descrição; o paymentData diz quem ele é, e o nome sai antes de gravar
+  const comTitular = lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'BANCO X', ...doc('CNPJ', CNPJ_LOJA) } }, `PIX ENVIADO ${NOME_TITULAR} BANCO X`))!;
+  checar('débito tira o nome do pagador (titular) da descrição', !vazou(comTitular) && comTitular.descOrigem === 'PIX ENVIADO BANCO X' && !comTitular.descNorm.includes('FULANO'));
+  const credTitular = lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'Pix recebido  fulano de tál da silva', descriptionRaw: 'Pix recebido  fulano de tál da silva', paymentData: { payer: { name: 'MARIA SILVA', ...doc('CPF', CPF_OUTRA_PESSOA) }, receiver: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } } }))!;
+  checar('crédito tira o nome do recebedor (titular), sem acento nem caixa', credTitular.descOrigem === 'Pix recebido' && !vazou(credTitular));
+  const mesmoDoc = lancamentoDaConta(txc({ type: 'CREDIT', amount: 200, description: 'TED FULANO D TAL SILVA', descriptionRaw: 'TED FULANO D TAL SILVA', paymentData: { payer: { name: 'Fulano D Tal Silva', ...doc('CPF', CPF_TITULAR) }, receiver: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } } }))!;
+  checar('mesmo documento dos dois lados: os dois nomes saem', mesmoDoc.descOrigem === 'TED' && mesmoDoc.papel === 'fora');
+  checar('o nome da outra ponta fica (é o que o dono reconhece)', lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) }, receiver: { name: 'MARIA SILVA', ...doc('CPF', CPF_OUTRA_PESSOA) } }, 'PIX TRANSF MARIA SILVA'))!.descOrigem === 'PIX TRANSF MARIA SILVA');
+  checar('descrição sem o nome fica como veio', lancamentoDaConta(pix({ payer: { name: NOME_TITULAR, ...doc('CPF', CPF_TITULAR) } }, 'PIX  TRANSF   MARIA'))!.descOrigem === 'PIX  TRANSF   MARIA');
+  checar('nome dentro de outra palavra não é cortado', lancamentoDaConta(pix({ payer: { name: 'ANA', ...doc('CPF', CPF_TITULAR) } }, 'PIX MARIANA'))!.descOrigem === 'PIX MARIANA');
   checar('conta malformada é descartada', lancamentoDaConta(txc({ id: '' })) === null && lancamentoDaConta(txc({ amount: Number.NaN })) === null && lancamentoDaConta(txc({ date: 'ontem' })) === null);
   checar('papelDaConta direto', papelDaConta(txc(), 80, 'CONTA LUZ') === 'gasto' && papelDaConta(txc(), -80, 'PIX RECEBIDO') === 'entrada');
 
