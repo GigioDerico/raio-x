@@ -365,7 +365,7 @@ export async function aprender(
 
 export async function regrasAprendidas(userId: string) {
   const linhas = await db
-    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido })
+    .select({ descNorm: learnedLabel.descNorm, categoryId: learnedLabel.categoryId, apelido: learnedLabel.apelido, papel: learnedLabel.papel })
     .from(learnedLabel)
     .where(eq(learnedLabel.userId, userId));
   return new Map(linhas.map((l) => [l.descNorm, l]));

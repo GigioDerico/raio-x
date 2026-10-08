@@ -4,10 +4,12 @@ import { db } from '@/db';
 import { account, statement, syncRun, txn } from '@/db/schema';
 import { prefixoDedupe } from '../dedupe';
 import { chaveAprendizado, JANELA_DIAS } from '../descricao';
-import { planoDeParcela, regrasAprendidas } from '../txn-repo';
+import { idDaCategoria, planoDeParcela, regrasAprendidas } from '../txn-repo';
 import {
+  destinoNoSync,
   faturaDaBill,
   faturasAbertasDosRecebidos,
+  lancamentoDaConta,
   lancamentoDoPluggy,
   mesesDasFaturas,
   type FaturaMapeada,
@@ -26,7 +28,8 @@ export type ResultadoSync = {
   suspeitos: number;
   ignorados: number;
   descartados: number;
-  // ids dos lançamentos criados agora: só eles vão à IA, o resto já foi (regra 9)
+  // ids dos lançamentos criados agora que vão à IA: só eles, o resto já foi (regra 9),
+  // e o Pix para pessoa física, o crédito e o que não conta nunca vão (regra 4)
   inseridos: string[];
 };
 
@@ -149,6 +152,7 @@ export async function sincronizarConta(
   faturas: FaturaPluggy[],
   transacoes: TransacaoPluggy[],
   connectionId: string | null = null,
+  kind: 'cartao_credito' | 'conta_corrente' = 'cartao_credito',
 ): Promise<ResultadoSync> {
   // a conta vem do casamento, mas o executor confere de novo: posse no where
   const [dono] = await db
@@ -161,10 +165,11 @@ export async function sincronizarConta(
   const { fatura, mapeadas } = await gravarFaturas(accountId, faturas);
   const statementDoBill = (billId: string | null) => (billId ? (fatura.get(billId)?.statementId ?? null) : null);
 
+  const mapear = kind === 'conta_corrente' ? lancamentoDaConta : lancamentoDoPluggy;
   const recebidos: Recebido[] = [];
   let descartados = 0;
   for (const t of transacoes) {
-    const r = lancamentoDoPluggy(t);
+    const r = mapear(t);
     if (r) recebidos.push(r);
     else descartados++;
   }
@@ -216,8 +221,10 @@ export async function sincronizarConta(
     const acoes = planejarSync(accountId, existentes, recebidos, statementDoBill);
     const porId = new Map(existentes.map((e) => [e.id, e]));
     const regras = await regrasAprendidas(userId);
+    // Pix para pessoa física não vai à IA: chega em "Outros" para o dono categorizar
+    const outrosId = recebidos.some((r) => r.pessoaFisica) ? await idDaCategoria('Outros') : null;
     const comandos: unknown[] = [];
-    const posicoesInsert: number[] = [];
+    const posicoesInsert: { pos: number; vaiParaIA: boolean }[] = [];
 
     for (const a of acoes) {
       if (a.tipo === 'ignorar') {
@@ -247,7 +254,8 @@ export async function sincronizarConta(
         if (a.suspeitoDuplicado) resultado.suspeitos++;
         else resultado.novos++;
         const regra = regras.get(chaveAprendizado(r.descNorm));
-        posicoesInsert.push(comandos.length);
+        const destino = destinoNoSync(r, regra?.papel);
+        posicoesInsert.push({ pos: comandos.length, vaiParaIA: destino.vaiParaIA });
         comandos.push(
           db
             .insert(txn)
@@ -260,9 +268,10 @@ export async function sincronizarConta(
               descOrigem: r.descOrigem,
               descNorm: r.descNorm,
               apelido: regra?.apelido ?? null,
-              categoryId: regra?.categoryId ?? null,
+              categoryId: regra?.categoryId ?? (destino.outros ? outrosId : null),
               categoryFonte: regra ? 'regra' : 'ia',
               tipo: r.tipo,
+              papel: destino.papel,
               installmentId,
               parcelaN: r.parcela?.n ?? null,
               fonte: 'pluggy',
@@ -284,7 +293,10 @@ export async function sincronizarConta(
       comandos.unshift(db.execute(sql`select pg_advisory_xact_lock(hashtext(${accountId}))`));
       const saidas = (await db.batch(comandos as unknown as Parameters<typeof db.batch>[0])) as unknown as unknown[];
       // o lock entrou na frente: cada posição anda uma casa
-      for (const p of posicoesInsert) for (const l of saidas[p + 1] as { id: string }[]) resultado.inseridos.push(l.id);
+      for (const { pos, vaiParaIA } of posicoesInsert) {
+        if (!vaiParaIA) continue;
+        for (const l of saidas[pos + 1] as { id: string }[]) resultado.inseridos.push(l.id);
+      }
     }
   }
 
