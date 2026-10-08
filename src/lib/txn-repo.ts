@@ -545,7 +545,17 @@ export async function mudarPapel(userId: string, ids: string[], papel: Papel) {
       const feitas = await db
         .update(txn)
         .set({ papel })
-        .where(and(inArray(txn.id, alvo), eq(txn.userId, userId), eq(txn.papelFonte, 'auto')))
+        .where(
+          // as travas do select de novo: entre ele e o update, um sync pode ter gravado a linha
+          and(
+            inArray(txn.id, alvo),
+            eq(txn.userId, userId),
+            isNull(txn.excluidoEm),
+            eq(txn.papelFonte, 'auto'),
+            eq(txn.pessoaFisica, false),
+            inArray(txn.accountId, contasCorrentes(userId)),
+          ),
+        )
         .returning({ id: txn.id });
       outros = feitas.length;
     }
