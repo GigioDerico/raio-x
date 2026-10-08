@@ -1,7 +1,7 @@
 # Fatia 6 — acompanhamento
 
 Spec: [`docs/superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md`](../superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md)
-Estado: 6.0 na main; 6.1 concluída (branch `fatia-6.1`, aguardando merge); próxima 6.2.
+Estado: 6.0 na main; 6.1 na main; 6.2 concluída (branch `fatia-6.2`, aguardando merge); próxima 6.3.
 
 | # | Entrega | Estado | Documento |
 | --- | --- | --- | --- |
