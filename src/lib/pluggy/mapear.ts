@@ -390,6 +390,8 @@ export function papelDaConta(t: TransacaoPluggy, valor: number, descOrigem: stri
   return valor > 0 ? 'gasto' : 'entrada';
 }
 
+const PALAVRAS_EMPRESA = /\b(LTDA|S\/?A|EIRELI|COMERCIO|SERVICOS|ME|EPP)\b/i;
+
 /**
  * A outra ponta é pessoa física? No débito é quem recebe; no crédito, quem paga.
  * Sem documento, Pix e TED contam como pessoa física: a descrição deles traz o
@@ -402,7 +404,15 @@ export function ehPessoaFisica(t: TransacaoPluggy, valor: number, descOrigem: st
   const tipo = outro?.documentNumber?.type;
   const n = digitos(outro).length;
   if (tipo === 'CPF' || n === 11) return true;
-  if (tipo === 'CNPJ' || n === 14) return false;
+  if (tipo === 'CNPJ' || n === 14) {
+    const nome = outro?.name?.trim() ?? '';
+    // A-4: MEI — razão social termina em dígitos do CNPJ ou não tem palavra de empresa
+    const digitosFim = (nome.match(/\d+$/) ?? [])[0] ?? '';
+    if (digitosFim.length >= 8 || (!PALAVRAS_EMPRESA.test(nome) && nome.length > 0)) {
+      return true;
+    }
+    return false;
+  }
   return pareceTransferenciaParaPessoa(descOrigem) || (!!t.category && CATEGORIA_TRANSFERENCIA.test(t.category));
 }
 
@@ -442,10 +452,12 @@ function semNome(desc: string, nome: string | null | undefined): string {
  * `paymentData` só existe aqui, então é aqui que ele sai: o pagador de um
  * débito e o recebedor de um crédito são o titular, e quem tem o mesmo
  * documento do pagador e do recebedor também.
+ *
+ * A-3: aceita também `titularConta` para quando o Pluggy omite `paymentData`.
  */
-function descricaoSemTitular(t: TransacaoPluggy, valor: number, descOrigem: string): string {
+function descricaoSemTitular(t: TransacaoPluggy, valor: number, descOrigem: string, titularConta?: string | null): string {
   const d = dadosPagamento(t);
-  const nomes = [valor > 0 ? d?.payer?.name : d?.receiver?.name];
+  const nomes = [valor > 0 ? d?.payer?.name : d?.receiver?.name, titularConta];
   const pagador = digitos(d?.payer);
   if (pagador !== '' && pagador === digitos(d?.receiver)) nomes.push(d?.payer?.name, d?.receiver?.name);
   const limpa = nomes.reduce<string>((s, n) => semNome(s, n), descOrigem);
@@ -458,13 +470,13 @@ function descricaoSemTitular(t: TransacaoPluggy, valor: number, descOrigem: stri
  * positivo é dinheiro que sai. O `type` manda sobre o sinal do `amount`, que
  * na conta vem negativo no débito; sem `type`, o sinal invertido.
  */
-export function lancamentoDaConta(t: TransacaoPluggy): Recebido | null {
+export function lancamentoDaConta(t: TransacaoPluggy, titularConta?: string | null): Recebido | null {
   if (!t.id || typeof t.amount !== 'number' || !Number.isFinite(t.amount)) return null;
   const data = diaEmSaoPaulo(t.date);
   if (!data || !diaValido(data)) return null;
   const centavos = Math.round(t.amount * 100) / 100;
   const valor = t.type === 'DEBIT' ? Math.abs(centavos) : t.type === 'CREDIT' ? -Math.abs(centavos) : -centavos;
-  const descOrigem = descricaoSemTitular(t, valor, (t.descriptionRaw || t.description || '').trim());
+  const descOrigem = descricaoSemTitular(t, valor, (t.descriptionRaw || t.description || '').trim(), titularConta);
   return {
     pluggyTxnId: t.id,
     data,

@@ -49,7 +49,7 @@ import type { Projecao } from '../src/lib/calculos/parcelas';
 import { montarPrevisto, previsto } from '../src/lib/calculos/previsto';
 import { limparFixos, respostaTemCategorias, validarPrefs } from '../src/lib/plano-prefs';
 import { fraseSemPlano, subtituloPlano, notasDoPlano, feitoPara, planoTerminou } from '../src/lib/plano-texto';
-import { contextoParaIA, rotuloDaPessoa, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
+import { contextoParaIA, rotuloDaPessoa, dadosDiagnostico, lerCategorias, mensagensConversa, PESSOA_FISICA_PARA_IA, promptCategorizar, promptDeExtracaoComMapa, promptDeExtracaoParaIA, promptDiagnostico, promptPlano, promptResumo, semDocumentos, textoDaFaturaParaIA } from '../src/lib/ia';
 import { chaveRecorte, dadosResumo, lerResumo, lerTexto } from '../src/lib/calculos/resumo';
 import { markdownLeve } from '../src/lib/markdown-leve';
 import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/lib/ndjson';
@@ -1810,6 +1810,39 @@ async function main() {
   checar('renomeado: com categoria', textoRenomeado(12, 'A Ferreira', 'Alane Ferreira', 'Padaria') === '12 lançamentos de “A Ferreira” agora são “Alane Ferreira” (Padaria).');
   checar('renomeado: sem categoria', textoRenomeado(12, 'A Ferreira', 'Alane Ferreira', null) === '12 lançamentos de “A Ferreira” agora são “Alane Ferreira”.');
   checar('renomeado: singular', textoRenomeado(1, 'A Ferreira', 'Alane Ferreira', null) === '1 lançamento de “A Ferreira” agora é “Alane Ferreira”.');
+
+  // ── Auditoria de segurança fatia 6 ───────────────────────────────────────
+  // A-2: anonimização de Pix/TED no PDF
+  const { prompt: pPix, mapaPessoas: mMapa } = promptDeExtracaoComMapa('15/08 PIX TRANSF FULANO DE TAL 120,00', false, 1, 1, '2026');
+  checar('auditoria A-2: prompt de extração não vaza nome de Pix', !pPix.includes('FULANO DE TAL') && pPix.includes('[pessoa 1]'));
+  checar('auditoria A-2: mapa de pessoas guarda o nome original', mMapa['[pessoa 1]'] === 'FULANO DE TAL');
+
+  // A-3: nome do titular na conta corrente sem paymentData
+  const ccSemPaymentData = tx({
+    description: `PIX ENVIADO ${NOME_TITULAR}`,
+    descriptionRaw: `PIX ENVIADO ${NOME_TITULAR}`,
+    amount: -150,
+    paymentData: undefined,
+  });
+  const lCcComTitular = lancamentoDaConta(ccSemPaymentData, NOME_TITULAR);
+  checar('auditoria A-3: titular da conta removido da descrição sem paymentData', lCcComTitular !== null && !lCcComTitular.descOrigem.includes(NOME_TITULAR));
+
+  // A-4: MEI com CNPJ tratado como pessoa física
+  const txMeiDigitos = tx({
+    amount: -80,
+    paymentData: { receiver: { name: 'MARIA SILVA 12345678', documentNumber: { type: 'CNPJ', value: '12345678000199' } } },
+  });
+  const txMeiSemEmpresa = tx({
+    amount: -120,
+    paymentData: { receiver: { name: 'JOAO PEREIRA PROFESSOR', documentNumber: { type: 'CNPJ', value: '98765432000188' } } },
+  });
+  const txLtda = tx({
+    amount: -200,
+    paymentData: { receiver: { name: 'MERCADO CENTRAL LTDA', documentNumber: { type: 'CNPJ', value: '11222333000144' } } },
+  });
+  checar('auditoria A-4: MEI com dígitos no nome é pessoa física', ehPessoaFisica(txMeiDigitos, 80, 'PIX ENVIADO'));
+  checar('auditoria A-4: MEI sem palavra de empresa é pessoa física', ehPessoaFisica(txMeiSemEmpresa, 120, 'PIX ENVIADO'));
+  checar('auditoria A-4: empresa LTDA não é pessoa física', !ehPessoaFisica(txLtda, 200, 'PIX ENVIADO'));
 
   process.stdout.write(falhas === 0 ? '\nTodos os testes passaram.\n' : `\n${falhas} falha(s).\n`);
   process.exitCode = falhas === 0 ? 0 : 1;

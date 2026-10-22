@@ -141,6 +141,14 @@ export function criarClientePluggy(o: Opcoes) {
         throw e;
       }
     },
+    async conta(accountId: string): Promise<ContaPluggy | null> {
+      try {
+        return await get<ContaPluggy>(`/accounts/${encodeURIComponent(accountId)}`);
+      } catch (e) {
+        if (e instanceof Error && /respondeu 404/.test(e.message)) return null;
+        throw e;
+      }
+    },
     async contasDoItem(itemId: string): Promise<ContaPluggy[]> {
       const r = await get<{ results?: ContaPluggy[] }>(`/accounts?itemId=${encodeURIComponent(itemId)}`);
       return r.results ?? [];
