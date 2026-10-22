@@ -58,7 +58,6 @@ export const userSetting = pgTable('user_setting', {
     .references(() => appUser.id, { onDelete: 'cascade' }),
   metaPoupanca: numeric('meta_poupanca', { precision: 5, scale: 2 }).notNull().default('20'),
   rendaDeclarada: numeric('renda_declarada', { precision: 14, scale: 2 }),
-  gastoForaCartao: numeric('gasto_fora_cartao', { precision: 14, scale: 2 }).notNull().default('0'),
   modeloIa: text('modelo_ia').notNull().default('anthropic/claude-sonnet-4.5'),
   tz: text('tz').notNull().default('America/Sao_Paulo'),
   tetoIaUsd: numeric('teto_ia_usd', { precision: 8, scale: 2 }),

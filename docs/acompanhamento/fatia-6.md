@@ -1,14 +1,14 @@
 # Fatia 6 — acompanhamento
 
 Spec: [`docs/superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md`](../superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md)
-Estado: 6.0 na main; 6.1 na main; 6.2 concluída (branch `fatia-6.2`, aguardando merge); próxima 6.3.
+Estado: fatia 6 concluída (6.0 a 6.3); 6.0 e 6.1 na main, 6.2 e 6.3 em branch aguardando merge. Pendências A-2 a A-6 da auditoria ficam para antes de tornar o repositório público.
 
 | # | Entrega | Estado | Documento |
 | --- | --- | --- | --- |
 | 6.0 | Dados: migração 0013, sync da conta, papel automático, pessoa física fora da IA | concluída | [6.0-dados-conta-corrente.md](6.0-dados-conta-corrente.md) |
 | 6.1 | Lançamentos (alternador, "não conta") | concluída | [6.1-nao-conta-e-entradas.md](6.1-nao-conta-e-entradas.md) |
 | 6.2 | Renda digitada no painel, plano e Previsto; Ajustes sem "gasto fora do cartão" | concluída | [6.2-renda-digitada-e-ajustes.md](6.2-renda-digitada-e-ajustes.md) |
-| 6.3 | Migração 0017: apagar `gasto_fora_cartao` (a renda digitada fica) | a fazer | — |
+| 6.3 | Migração 0017: apagar `gasto_fora_cartao`; auditoria de segurança | concluída | [6.3-limpeza-e-auditoria.md](6.3-limpeza-e-auditoria.md) |
 
 ## Histórico
 

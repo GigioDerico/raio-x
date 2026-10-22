@@ -3,7 +3,7 @@ import { and, eq, gte, inArray, like, lte, or, sql, type SQL } from 'drizzle-orm
 import { db } from '@/db';
 import { account, statement, syncRun, txn } from '@/db/schema';
 import { prefixoDedupe } from '../dedupe';
-import { chaveAprendizado, JANELA_DIAS } from '../descricao';
+import { chaveAprendizado, JANELA_DIAS, pareceTransferenciaParaPessoa } from '../descricao';
 import { idDaCategoria, planoDeParcela, regrasAprendidas, regrasDePapel } from '../txn-repo';
 import { chaveDaRegraDePapel } from '../papel';
 import {
@@ -270,7 +270,8 @@ export async function sincronizarConta(
               valor: r.valor.toFixed(2),
               descOrigem: r.descOrigem,
               descNorm: r.descNorm,
-              apelido: regra?.apelido ?? null,
+              // regra de apelido não pinta Pix/TED: a descrição se repete para pessoa e empresa
+              apelido: pareceTransferenciaParaPessoa(r.descOrigem) ? null : (regra?.apelido ?? null),
               categoryId: regra?.categoryId ?? (destino.outros ? outrosId : null),
               // só a categoria aprendida faz a fonte ser 'regra': a regra que traz só apelido
               // deixaria o gasto sem categoria e fora da IA para sempre
