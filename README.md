@@ -24,6 +24,16 @@ Enquanto isso: o app conecta qualquer instituição do Open Finance brasileiro q
 
 <!-- conectores:fim -->
 
+### Conectando pelo Meu Pluggy
+
+Para uso pessoal, o caminho mais simples é o [Meu Pluggy](https://meu.pluggy.ai), o portal gratuito do Pluggy para pessoa física:
+
+1. No Meu Pluggy, conecte seus bancos. A autorização acontece no app de cada banco, pelo Open Finance, e é só de leitura.
+2. No Raio-X, em **Conexões**, toque em **Conectar pelo Meu Pluggy** e entre com a mesma conta. O widget abre direto no conector MeuPluggy (id 200), e os cartões e contas chegam em seguida.
+3. Conectou outro banco no Meu Pluggy depois? Use **Atualizar agora** na conexão MeuPluggy. Se ele não aparecer, conecte pelo Meu Pluggy de novo: os cartões já trazidos não duplicam.
+
+A conexão nasce com o seu usuário como dono no Pluggy (`clientUserId`), como qualquer outra. Quem preferir pode conectar um banco direto pela lista completa, que fica em "Conectar um banco direto".
+
 ## Rodando na sua conta
 
 Você vai precisar de uma conta no [Neon](https://neon.tech) (banco), uma na [Vercel](https://vercel.com) (hospedagem), uma no [Pluggy](https://pluggy.ai) (Open Finance) e uma no [OpenRouter](https://openrouter.ai) (IA). Todas têm plano gratuito suficiente para uma pessoa, exceto a IA, que é paga por uso.
