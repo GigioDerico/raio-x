@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       const reserva = await reservarChamadaIA(userId, 'botao');
       resposta = await pedirJson<unknown>(prompt, { reserva, modelo: cfg?.modeloIa });
     } catch (e) {
-      if (e instanceof SemChaveIA) throw new ErroDeUso('sem_chave', 'Configure OPENROUTER_API_KEY');
+      if (e instanceof SemChaveIA) throw new ErroDeUso('sem_chave', e.message);
       if (e instanceof RespostaNaoJson) {
         if (e.modelo && e.uso) await registrarUso(userId, 'resumo', e.modelo, e.uso);
         throw iaInvalida();

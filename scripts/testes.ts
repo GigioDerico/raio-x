@@ -55,6 +55,8 @@ import { markdownLeve } from '../src/lib/markdown-leve';
 import { consumirNdjson, lerNdjson, linhaNdjson, type EventoLido } from '../src/lib/ndjson';
 import { divisoriaEm, LIMITE_PERGUNTA, SUGESTOES, validarPergunta, type FalaGuardada } from '../src/lib/conversa';
 import { lerLinhaSse } from '../src/lib/sse';
+import { lerLinhaSseAnthropic } from '../src/lib/sse-anthropic';
+import { calcularCustoUsd } from '../src/lib/ia-precos';
 import { categoriaHerdada, chaveDoNome, nomeNaTela, textoMudouJunto, textoRenomeado, validarNovoNome } from '../src/lib/nome-na-tela';
 import { chaveDaRegraDePapel, chavePapel, origensDoPapel, papelAceito, PREFIXO_PAPEL, regraDoPapel, textoDoPapel } from '../src/lib/papel';
 import { PREFS_PADRAO, metasDoPlano, ajustarPlano, type ResultadoPlano } from '../src/lib/calculos/plano';
@@ -1843,6 +1845,18 @@ async function main() {
   checar('auditoria A-4: MEI com dígitos no nome é pessoa física', ehPessoaFisica(txMeiDigitos, 80, 'PIX ENVIADO'));
   checar('auditoria A-4: MEI sem palavra de empresa é pessoa física', ehPessoaFisica(txMeiSemEmpresa, 120, 'PIX ENVIADO'));
   checar('auditoria A-4: empresa LTDA não é pessoa física', !ehPessoaFisica(txLtda, 200, 'PIX ENVIADO'));
+
+  // IA multi-provedor: parser SSE Anthropic e cálculo de custo
+  checar('sse anthropic: vazio e comentário', lerLinhaSseAnthropic('') === null && lerLinhaSseAnthropic(': ping') === null);
+  checar('sse anthropic: message_start lê tokensIn', lerLinhaSseAnthropic('data: {"type": "message_start", "message": {"usage": {"input_tokens": 150}}}')?.tokensIn === 150);
+  checar('sse anthropic: content_block_delta lê texto', lerLinhaSseAnthropic('data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Olá"}}')?.texto === 'Olá');
+  checar('sse anthropic: message_delta lê tokensOut', lerLinhaSseAnthropic('data: {"type": "message_delta", "usage": {"output_tokens": 42}}')?.tokensOut === 42);
+  checar('sse anthropic: message_stop marca fim', lerLinhaSseAnthropic('data: {"type": "message_stop"}')?.fim === true);
+  checar('sse anthropic: error lê mensagem', lerLinhaSseAnthropic('data: {"type": "error", "error": {"message": "overloaded"}}')?.erro === 'overloaded');
+
+  checar('custo ia: claude-3-5-sonnet', calcularCustoUsd('claude-3-5-sonnet-20241022', 1000, 1000) === 0.018);
+  checar('custo ia: gpt-4o-mini', calcularCustoUsd('gpt-4o-mini', 1000, 1000) === 0.00075);
+  checar('custo ia: modelo desconhecido é null', calcularCustoUsd('modelo-desconhecido-x', 1000, 1000) === null);
 
   process.stdout.write(falhas === 0 ? '\nTodos os testes passaram.\n' : `\n${falhas} falha(s).\n`);
   process.exitCode = falhas === 0 ? 0 : 1;

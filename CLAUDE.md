@@ -23,6 +23,7 @@ npm run typecheck
 npm run build      # SKIP_ENV_VALIDATION=1 quando não houver .env.local
 npm run db:migrate # aplica drizzle/*.sql na ordem
 npm run hash-senha # gera APP_PASSWORD_HASH e SESSION_SECRET
+npm run setup:ia   # assistente CLI de provedor de IA (Anthropic, OpenAI, OpenRouter)
 npm run conectores # regenera a lista de bancos no README (precisa da chave do Pluggy)
 ```
 
@@ -35,8 +36,8 @@ PDF, categorias aprendidas e lista editável (2); painel, categorias,
 parcelas e previsto, ajustes e plano de 3 meses (3); Pluggy (4); sync
 automático (5); conta corrente (6, com migração 0017); acabamento, IA e
 estados das telas (7). Auditoria de segurança (`docs/security-audit/achados-2026-10-08.md`)
-com todos os achados (A-1 a A-7) corrigidos. Históricos em
-`docs/acompanhamento/`.
+com todos os achados (A-1 a A-7) corrigidos. IA multi-provedor (Anthropic, OpenAI, OpenRouter)
+e guia Meu Pluggy concluídos. Históricos em `docs/acompanhamento/`.
 
 ## Regras que não se negociam
 
@@ -47,8 +48,8 @@ discuta antes de contornar.
    query ou corpo — mesmo com um usuário só.
 2. **Posse dentro do `where`, nunca num `if`.** `update ... where id = $1 and
    user_id = $2`. Um `select` seguido de checagem é onde o IDOR nasce.
-3. **Nenhuma variável `NEXT_PUBLIC_`.** Chave de Pluggy e de OpenRouter só no
-   servidor. O repositório é público.
+3. **Nenhuma variável `NEXT_PUBLIC_`.** Chave de Pluggy e de IA (Anthropic, OpenAI,
+   OpenRouter) só no servidor. O repositório é público.
 4. **Tudo que vai para a IA passa por `src/lib/ia.ts`.** Sem id, saldo, limite,
    CPF ou nome de titular. É o único ponto onde dado sai da infraestrutura.
 5. **CPF e nome do titular não são gravados**, mesmo o Pluggy entregando.

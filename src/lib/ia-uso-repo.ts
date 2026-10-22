@@ -6,7 +6,7 @@ import { env } from '@/env';
 import { lerConfig } from './ajustes-repo';
 import { resumoGasto } from './ia-gasto';
 import { limiteDeIA, textoLimiteIA, type ReservaIA } from './ia-limite';
-import { SemChaveIA, type Uso } from './openrouter';
+import { SemChaveIA, iaConfigurada, type Uso } from './openrouter';
 import { ErroDeUso } from './rota';
 
 /**
@@ -55,7 +55,7 @@ const quando = (v: unknown): Date | null => (v == null ? null : new Date(v as st
 export function reservarChamadaIA(userId: string, origem: 'botao'): Promise<ReservaIA>;
 export function reservarChamadaIA(userId: string, origem: 'automatica'): Promise<ReservaIA | null>;
 export async function reservarChamadaIA(userId: string, origem: 'botao' | 'automatica'): Promise<ReservaIA | null> {
-  if (!env.OPENROUTER_API_KEY) {
+  if (!iaConfigurada()) {
     if (origem === 'automatica') return null;
     throw new SemChaveIA();
   }

@@ -13,6 +13,7 @@ import { planoAtivo } from '@/lib/plano-repo';
 import { hashDoPrompt, saidaGuardada } from '@/lib/resumo-repo';
 import { ErroDeUso, comUsuario, corpoJson } from '@/lib/rota';
 import { configuracoes } from '@/lib/sessao-servidor';
+import { SemChaveIA, iaConfigurada } from '@/lib/openrouter';
 import { respostaEmStream } from '@/lib/stream-rota';
 
 export const runtime = 'nodejs';
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const { ctx, m, escopo } = await recorte(userId, filtro);
     if (!lancsDoMes(ctx, m).length) throw new ErroDeUso('sem_lancamentos', 'Não há lançamentos neste recorte');
-    if (!env.OPENROUTER_API_KEY) throw new ErroDeUso('sem_chave', 'Configure OPENROUTER_API_KEY');
+    if (!iaConfigurada()) throw new ErroDeUso('sem_chave', new SemChaveIA().message);
 
     const plano = await planoAtivo(userId);
     const dados = dadosDiagnostico(ctx, filtro.cartoes.length > 0, plano?.resultado ?? null);
