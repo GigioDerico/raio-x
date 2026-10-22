@@ -36,7 +36,7 @@ A conexão nasce com o seu usuário como dono no Pluggy (`clientUserId`), como q
 
 ## Rodando na sua conta
 
-Você vai precisar de uma conta no [Neon](https://neon.tech) (banco), uma na [Vercel](https://vercel.com) (hospedagem), uma no [Pluggy](https://pluggy.ai) (Open Finance) e uma no [OpenRouter](https://openrouter.ai) (IA). Todas têm plano gratuito suficiente para uma pessoa, exceto a IA, que é paga por uso.
+Você vai precisar de uma conta no [Neon](https://neon.tech) (banco), uma na [Vercel](https://vercel.com) (hospedagem), uma no [Pluggy](https://pluggy.ai) (Open Finance) e uma chave de IA à sua escolha: [Anthropic](https://console.anthropic.com) (Claude oficial), [OpenAI](https://platform.openai.com) (GPT oficial) ou [OpenRouter](https://openrouter.ai) (multi-modelos).
 
 ```bash
 git clone https://github.com/<voce>/raio-x.git
@@ -45,6 +45,7 @@ npm install
 
 cp .env.example .env.local
 npm run hash-senha        # gera APP_PASSWORD_HASH e SESSION_SECRET
+npm run setup:ia          # configura e testa Anthropic, OpenAI ou OpenRouter
 # preencha DATABASE_URL e DATABASE_URL_UNPOOLED com as strings do Neon
 
 npm run db:migrate        # cria o esquema

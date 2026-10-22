@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       await registrarUso(userId, 'plano', resposta.modelo, resposta.uso);
     } catch (e) {
       if (e instanceof RespostaNaoJson && e.modelo && e.uso) await registrarUso(userId, 'plano', e.modelo, e.uso);
-      if (e instanceof SemChaveIA) throw new ErroDeUso('sem_chave', 'Configure OPENROUTER_API_KEY');
+      if (e instanceof SemChaveIA) throw new ErroDeUso('sem_chave', e.message);
       if (e instanceof RespostaNaoJson) throw iaInvalida();
       throw e;
     }

@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import ApagarTudo from '@/components/ajustes/ApagarTudo';
 import CampoAjuste from '@/components/ajustes/CampoAjuste';
+import TestarIa from '@/components/ajustes/TestarIa';
 import { formatarCampo, linhaDoCartao } from '@/lib/ajustes';
 import { lerConfig, listarCartoes, listarContasCorrentes } from '@/lib/ajustes-repo';
 import { env } from '@/env';
 import { gastoDoMes } from '@/lib/ia-uso-repo';
 import { resumoGasto } from '@/lib/ia-gasto';
+import { iaConfigurada, modelosPadrao, provedorAtivo } from '@/lib/openrouter';
 import { exigirUsuario } from '@/lib/sessao-servidor';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +17,10 @@ export default async function Ajustes() {
   const [config, cartoes, contas, gasto] = await Promise.all([lerConfig(userId), listarCartoes(userId), listarContasCorrentes(userId), gastoDoMes(userId)]);
   const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
   const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
+  const prov = provedorAtivo();
+  const temChave = iaConfigurada();
+  const padrao = modelosPadrao();
+  const nomeProv = prov === 'anthropic' ? 'Anthropic Claude' : prov === 'openai' ? 'OpenAI GPT' : 'OpenRouter';
 
   return (
     <div className="tela-ajustes">
@@ -96,10 +102,21 @@ export default async function Ajustes() {
 
       <section className="cartao ajustes-bloco" aria-labelledby="aj-ia">
         <h2 id="aj-ia">Inteligência artificial</h2>
+        <div className="ia-provedor-status">
+          <p>
+            Provedor ativo: <strong>{nomeProv}</strong> {temChave ? '· ✓ Chave configurada' : '· ⚠️ Sem chave configurada'}
+          </p>
+          {!temChave && (
+            <p className="suave" style={{ fontSize: '13px', marginTop: '4px' }}>
+              Rode <code>npm run setup:ia</code> no terminal para configurar a chave e o provedor no seu <code>.env.local</code>.
+            </p>
+          )}
+        </div>
         <div className="ajustes-campos">
-          <CampoAjuste url="/api/ajustes" campo="modeloIa" rotulo="Modelo (OpenRouter)" tipo="texto" max={100} valor={formatarCampo('texto', config.modeloIa)} placeholder={env.OPENROUTER_MODEL} />
+          <CampoAjuste url="/api/ajustes" campo="modeloIa" rotulo={`Modelo (${nomeProv})`} tipo="texto" max={100} valor={formatarCampo('texto', config.modeloIa)} placeholder={padrao.principal} />
           <CampoAjuste url="/api/ajustes" campo="tetoIaUsd" rotulo="Teto mensal (US$)" tipo="numero" valor={formatarCampo('numero', config.tetoIaUsd)} placeholder={`${env.AI_BUDGET_USD_MONTH} (padrão)`} atualizarTela />
         </div>
+        <TestarIa />
         <div className={`ia-gasto${resumo.acima ? ' acima' : ''}`}>
           <p>
             <b>{usd(resumo.gasto)}</b>
@@ -113,13 +130,12 @@ export default async function Ajustes() {
           {resumo.acima && <p className="ia-aviso">Passou do teto deste mês. A categorização automática parou; o que você pede por botão continua.</p>}
           {resumo.semCusto > 0 && (
             <p className="ajustes-nota">
-              {resumo.semCusto} {resumo.semCusto === 1 ? 'chamada' : 'chamadas'} sem custo informado pelo OpenRouter.
+              {resumo.semCusto} {resumo.semCusto === 1 ? 'chamada' : 'chamadas'} sem custo informado pelo provedor.
             </p>
           )}
         </div>
         <p className="ajustes-nota">
-          O modelo vale para a leitura de faturas e para o plano. Teto 0 = sem teto; vazio = o do servidor. Quando o
-          modelo principal falha e o de reserva responde, só a chamada que deu certo entra na conta.
+          O modelo vale para leitura de faturas, categorização e plano. Teto 0 = sem teto; vazio = padrão do servidor. Para trocar de provedor ou chave, execute <code>npm run setup:ia</code>.
         </p>
       </section>
 

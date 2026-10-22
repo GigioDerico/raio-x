@@ -5,7 +5,7 @@ import { txn } from '@/db/schema';
 import { env } from '@/env';
 import { lerCategorias, promptCategorizar, semDocumentos } from '@/lib/ia';
 import { registrarUso, reservarChamadaIA } from '@/lib/ia-uso-repo';
-import { RespostaNaoJson, pedirJson } from '@/lib/openrouter';
+import { RespostaNaoJson, iaConfigurada, pedirJson } from '@/lib/openrouter';
 import { idDaCategoria } from '@/lib/txn-repo';
 
 const LOTE = 60;
@@ -61,7 +61,7 @@ export async function categorizarPendentes(
     );
   const precisam = pendentes.filter(precisaCategoria).length;
   if (!pendentes.length) return { categorizados: 0, semCategoria: 0, nomes: 0 };
-  if (!env.OPENROUTER_API_KEY) return { categorizados: 0, semCategoria: precisam, nomes: 0 };
+  if (!iaConfigurada()) return { categorizados: 0, semCategoria: precisam, nomes: 0 };
 
   const lotes = [];
   for (let i = 0; i < pendentes.length; i += LOTE) lotes.push(pendentes.slice(i, i + LOTE));

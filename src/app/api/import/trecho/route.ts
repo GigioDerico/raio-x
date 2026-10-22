@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       if (e instanceof RespostaNaoJson && e.modelo && e.uso) await registrarUso(userId, 'extracao', e.modelo, e.uso);
       if (e instanceof SemChaveIA) {
-        throw new ErroDeUso('sem_chave_ia', 'configure OPENROUTER_API_KEY para importar PDF', 501);
+        throw new ErroDeUso('sem_chave_ia', e.message, 501);
       }
       if (e instanceof RespostaNaoJson && !comCabecalho) {
         // trecho do meio ilegível não derruba a importação inteira

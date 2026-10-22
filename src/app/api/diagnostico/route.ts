@@ -11,6 +11,7 @@ import { planoAtivo } from '@/lib/plano-repo';
 import { guardarSaida, hashDoPrompt, saidaGuardada } from '@/lib/resumo-repo';
 import { ErroDeUso, comUsuario, corpoJson } from '@/lib/rota';
 import { configuracoes } from '@/lib/sessao-servidor';
+import { SemChaveIA, iaConfigurada } from '@/lib/openrouter';
 import { respostaEmStream } from '@/lib/stream-rota';
 
 export const runtime = 'nodejs';
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
       const guardado = await saidaGuardada(userId, 'diagnostico', escopo, hash);
       if (guardado?.atual) return { texto: guardado.texto };
     }
-    if (!env.OPENROUTER_API_KEY) throw new ErroDeUso('sem_chave', 'Configure OPENROUTER_API_KEY');
+    if (!iaConfigurada()) throw new ErroDeUso('sem_chave', new SemChaveIA().message);
 
     const cfg = await configuracoes(userId);
     // reserva aqui, e não no stream: o 429 precisa sair antes do stream abrir

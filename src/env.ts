@@ -42,6 +42,12 @@ const schema = z.object({
   PLUGGY_CLIENT_ID: z.string().optional(),
   PLUGGY_CLIENT_SECRET: z.string().optional(),
   PLUGGY_WEBHOOK_SECRET: segredoOpcional('PLUGGY_WEBHOOK_SECRET'),
+  // IA multi-provedor (openrouter | anthropic | openai)
+  IA_PROVEDOR: z.enum(['openrouter', 'anthropic', 'openai']).default('openrouter'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  IA_MODEL: z.string().optional(),
+  IA_MODEL_FALLBACK: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default('anthropic/claude-sonnet-4.5'),
   OPENROUTER_MODEL_FALLBACK: z.string().default('openai/gpt-4.1-mini'),
