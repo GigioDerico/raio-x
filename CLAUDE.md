@@ -30,12 +30,11 @@ Antes de dar qualquer tarefa por concluída: `npm run typecheck && npm test && n
 
 ## Estado
 
-Fatias 1 a 7 prontas: esqueleto, banco e login (1); importação de PDF,
-categorias aprendidas e lista editável (2); painel, categorias, parcelas e
-previsto, ajustes e plano de 3 meses (3); Pluggy (4); sync automático (5);
-conta corrente (6, com migração 0017); acabamento, IA e estados das telas (7).
-Fatias 1 a 6 na main; fatia 7 na branch `fatia-7.5` aguardando merge.
-Pendências A-2 a A-6 da auditoria (`docs/security-audit/achados-2026-10-08.md`)
+Fatias 1 a 7 prontas e na main: esqueleto, banco e login (1); importação de
+PDF, categorias aprendidas e lista editável (2); painel, categorias,
+parcelas e previsto, ajustes e plano de 3 meses (3); Pluggy (4); sync
+automático (5); conta corrente (6, com migração 0017); acabamento, IA e
+estados das telas (7). Pendências A-2 a A-6 da auditoria (`docs/security-audit/achados-2026-10-08.md`)
 ficam para antes de tornar o repositório público. Históricos em
 `docs/acompanhamento/`.
 
