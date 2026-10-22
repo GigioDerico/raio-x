@@ -1,7 +1,7 @@
 # Fatia 7 — acompanhamento
 
 Guia: [`docs/guia-de-construcao.md`](../guia-de-construcao.md) (fatia 7 · Acabamento: resumo do mês, diagnóstico, conversa, teto de IA, exportar/apagar, alertas, vazios)
-Estado: 7.1 a 7.4 concluídas. Faltam alertas (dependem do sync) e as pranchas de Open Finance (Pluggy).
+Estado: fatia 7 concluída (7.1 a 7.5).
 
 | # | Entrega | Estado | Documento |
 | --- | --- | --- | --- |
@@ -9,11 +9,7 @@ Estado: 7.1 a 7.4 concluídas. Faltam alertas (dependem do sync) e as pranchas d
 | 7.2 | Diagnóstico por IA, em stream, só por botão | concluída | [7.2-diagnostico.md](7.2-diagnostico.md) |
 | 7.3 | Conversa sobre o recorte, guardada por recorte | concluída | [7.3-conversa.md](7.3-conversa.md) |
 | 7.4 | Estados das telas: primeiro uso, vazio por filtro, carregando, erro | concluída | [7.4-estados-das-telas.md](7.4-estados-das-telas.md) |
-
-## Onde paramos (2026-10-04)
-
-- 7.3 e 7.4 aprovadas e integradas na main.
-- Pendências de custo da IA (fallback, Parar) em `7.1`/`7.2`; desfazer no plano e na conversa e o ponto escondido em "Mais" em `7.4`.
+| 7.5 | Alertas de conexão e acabamento de navegação mobile | concluída | [7.4-estados-das-telas.md](7.4-estados-das-telas.md) |
 
 ## Histórico
 
@@ -24,3 +20,6 @@ Estado: 7.1 a 7.4 concluídas. Faltam alertas (dependem do sync) e as pranchas d
 - 2026-10-03 — Brainstorming da 7.3: conversa guardada, uma por recorte, com o diagnóstico atual no pedido.
 - 2026-10-03 — Dono vai testar a 7.3 depois; segue a 7.4 (estados das telas).
 - 2026-10-04 — 7.3 e 7.4 aprovadas e integradas.
+- 2026-10-07 — Alertas de conexão e pranchas de Open Finance entregues com o sync automático (fatia 5.0 / `avisoDasConexoes`).
+- 2026-10-22 — Acabamento mobile do menu "Mais" (ponto de carregamento no botão) e fechamento da Fatia 7.
+
