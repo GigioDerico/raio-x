@@ -4,9 +4,9 @@ Painel pessoal de finanças que junta **Open Finance** e **faturas em PDF** no m
 
 Feito para rodar na sua própria conta — um banco seu, suas chaves, seus dados. Não existe versão hospedada, e isso é de propósito.
 
-> **Estado:** fatia 2 de 7 — importa faturas em PDF, categoriza, aprende suas correções e deixa editar, excluir e mudar em lote. Ainda não conecta banco (fatia 4) nem tem painel de análise (fatia 3). O plano completo está em [docs/plano-tecnico.md](docs/plano-tecnico.md).
+> **Estado:** fatias 1 a 7 concluídas — Open Finance (Pluggy), faturas em PDF, categorização aprendida, painel e plano de 3 meses, conta corrente, inteligência artificial e acabamento de interface. O plano completo está em [docs/plano-tecnico.md](docs/plano-tecnico.md).
 
-## O que ele faz (quando pronto)
+## O que ele faz
 
 - Conecta seus bancos por Open Finance e traz lançamentos de cartão e conta corrente, com parcelas e faturas que vêm da própria instituição.
 - Importa faturas em PDF para o histórico anterior à conexão — a API só entrega 12 meses.
