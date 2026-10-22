@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { limparCabecalho, limparLanc, type LancBruto } from '@/lib/extracao';
-import { promptDeExtracaoParaIA } from '@/lib/ia';
+import { promptDeExtracaoComMapa } from '@/lib/ia';
 import { RespostaNaoJson, SemChaveIA, pedirJson } from '@/lib/openrouter';
 import { registrarUso, reservarChamadaIA } from '@/lib/ia-uso-repo';
 import { ErroDeUso, comUsuario, corpoJson } from '@/lib/rota';
@@ -29,10 +29,12 @@ export async function POST(req: NextRequest) {
     const cfg = await configuracoes(userId);
     const anoDica = String(new Date().getFullYear());
 
+    const { prompt, mapaPessoas } = promptDeExtracaoComMapa(trecho, comCabecalho, idx, n, anoDica);
+
     let bruto: { banco?: unknown; cartao?: unknown; vencimento?: unknown; total?: unknown; lancamentos?: unknown };
     try {
       const reserva = await reservarChamadaIA(userId, 'botao');
-      const r = await pedirJson<typeof bruto>(promptDeExtracaoParaIA(trecho, comCabecalho, idx, n, anoDica), {
+      const r = await pedirJson<typeof bruto>(prompt, {
         reserva,
         modelo: cfg?.modeloIa,
       });
@@ -52,6 +54,20 @@ export async function POST(req: NextRequest) {
 
     const lista = Array.isArray(bruto.lancamentos) ? (bruto.lancamentos as LancBruto[]) : [];
     const lancamentos = lista.map(limparLanc).filter((l): l is NonNullable<typeof l> => l !== null);
+
+    // A-2: restaura o nome original de pessoas em transferências anonimizadas para a IA
+    if (Object.keys(mapaPessoas).length > 0) {
+      for (const l of lancamentos) {
+        for (const [marcador, nomeReal] of Object.entries(mapaPessoas)) {
+          const semColchetes = marcador.slice(1, -1);
+          if (l.desc.includes(marcador)) {
+            l.desc = l.desc.replaceAll(marcador, nomeReal);
+          } else if (l.desc.includes(semColchetes)) {
+            l.desc = l.desc.replaceAll(semColchetes, nomeReal);
+          }
+        }
+      }
+    }
 
     return {
       lancamentos,

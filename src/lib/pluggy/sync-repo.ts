@@ -156,6 +156,7 @@ export async function sincronizarConta(
   transacoes: TransacaoPluggy[],
   connectionId: string | null = null,
   kind: 'cartao_credito' | 'conta_corrente' = 'cartao_credito',
+  titularConta?: string | null,
 ): Promise<ResultadoSync> {
   // a conta vem do casamento, mas o executor confere de novo: posse no where
   const [dono] = await db
@@ -168,7 +169,7 @@ export async function sincronizarConta(
   const { fatura, mapeadas } = await gravarFaturas(accountId, faturas);
   const statementDoBill = (billId: string | null) => (billId ? (fatura.get(billId)?.statementId ?? null) : null);
 
-  const mapear = kind === 'conta_corrente' ? lancamentoDaConta : lancamentoDoPluggy;
+  const mapear = kind === 'conta_corrente' ? (t: TransacaoPluggy) => lancamentoDaConta(t, titularConta) : lancamentoDoPluggy;
   const recebidos: Recebido[] = [];
   let descartados = 0;
   for (const t of transacoes) {

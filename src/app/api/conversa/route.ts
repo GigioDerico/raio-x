@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const dadosHash = hashDoPrompt(dados);
     // só o diagnóstico dos mesmos números: um texto velho faria a IA defender números que mudaram
     const diag = await saidaGuardada(userId, 'diagnostico', escopo, hashDoPrompt(promptDiagnostico(dados)));
-    const historico = await falasDoRecorte(userId, escopo, 6);
+    const historico = await falasDoRecorte(userId, escopo, 6, dadosHash);
     const cfg = await configuracoes(userId);
     // reserva aqui, e não no stream: o 429 precisa sair antes do stream abrir
     const reserva = await reservarChamadaIA(userId, 'botao');

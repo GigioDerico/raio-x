@@ -481,12 +481,24 @@ function semCodigos(l: string): string {
   return saida.join('');
 }
 
-/** O trecho de fatura sem dado pessoal, pronto para o prompt de extração. */
-export function textoDaFaturaParaIA(trecho: string): string {
-  return trecho
+// Pix/TED/DOC com nome de pessoa (A-2)
+const PREFIXO_TRANSF =
+  /\b((?:PIX|TED|DOC|TRANSF\w*)(?:\s+(?:TRANSF\w*|ENVIAD\w*|PAG\w*|RECEB\w*|PARA))?)\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\s.'-]*?)(?=\s+(?:R\$\s*)?-?\d+[.,]\d{2}|\s+\d{1,2}\/\d{1,2}|\s*$)/gi;
+
+export type TrechoAnonimizado = {
+  texto: string;
+  mapaPessoas: Record<string, string>;
+};
+
+/** O trecho de fatura sem dado pessoal e com mapa para restaurar nomes na resposta. */
+export function textoDaFaturaParaIAComMapa(trecho: string): TrechoAnonimizado {
+  const mapaPessoas: Record<string, string> = {};
+  let contadorPessoas = 0;
+
+  const linhas = trecho
     .split('\n')
     .flatMap((bruta) => {
-      const l = semCodigos(bruta)
+      let l = semCodigos(bruta)
         .replace(CPF, '[CPF]')
         .replace(CARTAO, (_, a?: string, b?: string, c?: string, d?: string) => `•••• ${a ?? b ?? c ?? d}`);
       // endereço não tem pedaço que preste
@@ -498,26 +510,62 @@ export function textoDaFaturaParaIA(trecho: string): string {
         tem(SALDO_DEPOIS, l) ||
         tem(SALDO_ANTES, l) ||
         NOME.test(l);
-      if (!sensivel) return [l];
-      // o pdf-cliente monta a linha pela coordenada Y: num PDF de duas colunas,
-      // um lançamento ou o total da fatura divide a linha com "Limite total".
-      // Com valor ou data há o que salvar; sem, a linha é só o dado pessoal.
-      if (!VALOR.test(l) && !DATA.test(l)) return [];
-      const cortada = l
-        .replace(CEP, '[CEP]')
-        .replace(EMAIL, '[e-mail]')
-        .replace(SALDO_ANTES, ' [omitido]')
-        .replace(SALDO_DEPOIS, '[omitido] ')
-        .replace(NOME_TRECHO, '[omitido] ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      // "Limite total R$ 10.000,00" sozinha vira só marcador: não vale a linha
-      return cortada.replace(/\[(?:omitido|CEP|e-mail|código)\]/g, '').trim() ? [cortada] : [];
-    })
-    .join('\n');
+      if (sensivel) {
+        if (!VALOR.test(l) && !DATA.test(l)) return [];
+        l = l
+          .replace(CEP, '[CEP]')
+          .replace(EMAIL, '[e-mail]')
+          .replace(SALDO_ANTES, ' [omitido]')
+          .replace(SALDO_DEPOIS, '[omitido] ')
+          .replace(NOME_TRECHO, '[omitido] ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!l.replace(/\[(?:omitido|CEP|e-mail|código)\]/g, '').trim()) return [];
+      }
+
+      // A-2: anonimiza o nome de quem recebeu Pix/TED antes de ir à IA
+      l = l.replace(PREFIXO_TRANSF, (match, prefixo: string, nome: string) => {
+        const nomeTrim = nome.trim();
+        if (nomeTrim.length < 2) return match;
+        contadorPessoas++;
+        const marcador = `[pessoa ${contadorPessoas}]`;
+        mapaPessoas[marcador] = nomeTrim;
+        return `${prefixo} ${marcador}`;
+      });
+
+      return [l];
+    });
+
+  return { texto: linhas.join('\n'), mapaPessoas };
+}
+
+/** O trecho de fatura sem dado pessoal, pronto para o prompt de extração. */
+export function textoDaFaturaParaIA(trecho: string): string {
+  return textoDaFaturaParaIAComMapa(trecho).texto;
+}
+
+/** O prompt de extração com o mapa de anonimização para restauração posterior. */
+export function promptDeExtracaoComMapa(
+  trecho: string,
+  comCabecalho: boolean,
+  idx: number,
+  n: number,
+  anoDica: string,
+): { prompt: string; mapaPessoas: Record<string, string> } {
+  const { texto, mapaPessoas } = textoDaFaturaParaIAComMapa(trecho);
+  return {
+    prompt: promptExtracao(texto, comCabecalho, idx, n, anoDica),
+    mapaPessoas,
+  };
 }
 
 /** O prompt de extração (texto em `extracao.ts`) com o trecho já filtrado. */
-export function promptDeExtracaoParaIA(trecho: string, comCabecalho: boolean, idx: number, n: number, anoDica: string): string {
-  return promptExtracao(textoDaFaturaParaIA(trecho), comCabecalho, idx, n, anoDica);
+export function promptDeExtracaoParaIA(
+  trecho: string,
+  comCabecalho: boolean,
+  idx: number,
+  n: number,
+  anoDica: string,
+): string {
+  return promptDeExtracaoComMapa(trecho, comCabecalho, idx, n, anoDica).prompt;
 }

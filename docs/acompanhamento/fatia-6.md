@@ -1,7 +1,7 @@
 # Fatia 6 — acompanhamento
 
 Spec: [`docs/superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md`](../superpowers/specs/2026-10-07-fatia-6-conta-corrente-design.md)
-Estado: fatia 6 concluída e na main (6.0 a 6.3). Pendências A-2 a A-6 da auditoria ficam para antes de tornar o repositório público.
+Estado: fatia 6 concluída e na main (6.0 a 6.3). Auditoria de segurança concluída com todos os achados (A-1 a A-7) corrigidos.
 
 | # | Entrega | Estado | Documento |
 | --- | --- | --- | --- |

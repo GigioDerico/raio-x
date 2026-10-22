@@ -114,7 +114,7 @@ export async function listarTxn(userId: string, f: FiltroTxn = {}) {
     .leftJoin(installmentPlan, and(eq(installmentPlan.id, txn.installmentId), eq(installmentPlan.accountId, txn.accountId)))
     .where(and(...cond))
     .orderBy(desc(txn.data), asc(txn.descNorm))
-    .limit(Math.min(f.limite ?? 500, 2000));
+    .limit(Math.max(1, Math.min(f.limite ?? 500, 2000)));
 }
 
 /** O N do alternador "Não conta (N)": débitos fora dos totais no recorte. */

@@ -70,12 +70,22 @@ export async function sincronizarCartao(
     periodo = janelaAtualizar(ultimoSyncEm, agora);
   }
 
+  let titularConta: string | null = null;
+  if (kind === 'conta_corrente') {
+    try {
+      const c = await pluggy().conta(conta.pluggyAccountId);
+      titularConta = c?.owner ?? null;
+    } catch {
+      // segue sem o titular se falhar
+    }
+  }
+
   const [faturas, transacoes] = await Promise.all([
     // conta corrente não tem fatura
     kind === 'cartao_credito' ? pluggy().faturas(conta.pluggyAccountId) : Promise.resolve([]),
     pluggy().transacoes(conta.pluggyAccountId, periodo.de, periodo.ate),
   ]);
-  const { inseridos, ...resultado } = await sincronizarConta(userId, conta.id, faturas, transacoes, conta.connectionId, kind);
+  const { inseridos, ...resultado } = await sincronizarConta(userId, conta.id, faturas, transacoes, conta.connectionId, kind, titularConta);
   const cfg = await configuracoes(userId);
   const cat = await categorizarPendentes(userId, conta.id, inseridos, cfg?.modeloIa);
   if (conta.connectionId) {

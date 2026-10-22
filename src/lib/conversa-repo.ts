@@ -5,11 +5,18 @@ import { conversaTurno } from '@/db/schema';
 import type { FalaGuardada } from './conversa';
 
 /** As últimas `limite` falas do recorte, em ordem de conversa. */
-export async function falasDoRecorte(userId: string, escopo: string, limite = 50): Promise<(FalaGuardada & { id: number })[]> {
+export async function falasDoRecorte(
+  userId: string,
+  escopo: string,
+  limite = 50,
+  dadosHash?: string,
+): Promise<(FalaGuardada & { id: number })[]> {
+  const cond = [eq(conversaTurno.userId, userId), eq(conversaTurno.escopo, escopo)];
+  if (dadosHash) cond.push(eq(conversaTurno.dadosHash, dadosHash));
   const linhas = await db
     .select({ id: conversaTurno.id, papel: conversaTurno.papel, texto: conversaTurno.texto, dadosHash: conversaTurno.dadosHash })
     .from(conversaTurno)
-    .where(and(eq(conversaTurno.userId, userId), eq(conversaTurno.escopo, escopo)))
+    .where(and(...cond))
     .orderBy(desc(conversaTurno.criadoEm), desc(conversaTurno.id))
     .limit(limite);
   // o check do banco só aceita os dois papéis: o cast não esconde outro valor
