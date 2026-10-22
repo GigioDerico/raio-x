@@ -982,6 +982,32 @@ section.block { margin-top: 30px; }
 .ajustes-bloco form button { margin: 0; }
 .ia-provedor-status { margin: 0 0 12px; padding: 10px 14px; background: var(--plane); border-radius: 8px; font-size: 13.5px; border: 1px solid var(--hair); }
 .ia-provedor-status p { margin: 0; }
+.conectar-ia-container { margin: 14px 0 16px; }
+.conectar-ia-metodos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.conectar-ia-aba {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font-size: 13.5px; cursor: pointer; min-height: 40px;
+}
+.conectar-ia-aba:hover:not([disabled]) { border-color: var(--accent); background: var(--plane); }
+.conectar-ia-aba.ativa { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.conectar-ia-badge-ativo {
+  font-size: 10px; padding: 2px 6px; border-radius: 999px;
+  background: var(--good); color: #fff; font-weight: 700; line-height: 1;
+}
+.conectar-ia-painel {
+  padding: 16px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface);
+}
+.conectar-ia-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.conectar-ia-titulo { margin: 0; font-size: 15px; }
+.conectar-ia-aviso-ativo {
+  margin-bottom: 12px; padding: 8px 12px; border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 12.5px;
+}
+.conectar-ia-form { display: flex; flex-direction: column; gap: 12px; }
+.conectar-ia-input-grupo { position: relative; display: flex; align-items: center; }
+.conectar-ia-input-grupo input { width: 100%; padding-right: 70px; }
+.conectar-ia-btn-visivel { position: absolute; right: 8px; font-size: 12px; padding: 4px 6px; }
+.conectar-ia-acoes { margin-top: 4px; }
 .ia-teste { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .ia-teste-ok { font-size: 13px; color: var(--good); margin: 0; }
 .ia-teste-erro { font-size: 13px; margin: 0; }

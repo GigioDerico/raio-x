@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import ApagarTudo from '@/components/ajustes/ApagarTudo';
 import CampoAjuste from '@/components/ajustes/CampoAjuste';
+import ConectarIa from '@/components/ajustes/ConectarIa';
 import TestarIa from '@/components/ajustes/TestarIa';
 import { formatarCampo, linhaDoCartao } from '@/lib/ajustes';
 import { lerConfig, listarCartoes, listarContasCorrentes } from '@/lib/ajustes-repo';
@@ -104,15 +105,13 @@ export default async function Ajustes() {
         <h2 id="aj-ia">Inteligência artificial</h2>
         <div className="ia-provedor-status">
           <p>
-            Provedor ativo: <strong>{nomeProv}</strong> {temChave ? '· ✓ Chave configurada' : '· ⚠️ Sem chave configurada'}
+            Provedor ativo: <strong>{nomeProv}</strong> {temChave ? '· ✓ Conectado e operacional' : '· ⚠️ Nenhuma chave conectada'}
           </p>
-          {!temChave && (
-            <p className="suave" style={{ fontSize: '13px', marginTop: '4px' }}>
-              Rode <code>npm run setup:ia</code> no terminal para configurar a chave e o provedor no seu <code>.env.local</code>.
-            </p>
-          )}
         </div>
-        <div className="ajustes-campos">
+
+        <ConectarIa provedorAtual={prov} temChave={temChave} />
+
+        <div className="ajustes-campos" style={{ marginTop: '16px' }}>
           <CampoAjuste url="/api/ajustes" campo="modeloIa" rotulo={`Modelo (${nomeProv})`} tipo="texto" max={100} valor={formatarCampo('texto', config.modeloIa)} placeholder={padrao.principal} />
           <CampoAjuste url="/api/ajustes" campo="tetoIaUsd" rotulo="Teto mensal (US$)" tipo="numero" valor={formatarCampo('numero', config.tetoIaUsd)} placeholder={`${env.AI_BUDGET_USD_MONTH} (padrão)`} atualizarTela />
         </div>
