@@ -10,15 +10,16 @@ import { espera, fraseDoFim, trazerCartoes, type Cartao, type Resumo } from '@/l
 // o widget mexe em window/document ao montar: só no navegador
 const PluggyConnect = dynamic(() => import('react-pluggy-connect').then((m) => m.PluggyConnect), { ssr: false });
 
-type Props = { conexaoId?: string; rotulo?: string };
+type Props = { conexaoId?: string; rotulo?: string; conectorId?: number; secundario?: boolean };
 
 /**
  * Abre o widget do Pluggy. O token é pedido no clique, não ao abrir a tela:
  * ele expira em minutos e nem toda visita a Ajustes vai conectar banco. Com
  * `conexaoId`, o widget abre no item existente (reconectar/renovar, chamado
- * por `AcaoConexao`) em vez de criar uma conexão nova.
+ * por `AcaoConexao`) em vez de criar uma conexão nova. Com `conectorId`, pula a
+ * lista de bancos e vai direto ao login daquele conector (ex.: Meu Pluggy).
  */
-export default function ConectarBanco({ conexaoId, rotulo }: Props) {
+export default function ConectarBanco({ conexaoId, rotulo, conectorId, secundario }: Props) {
   const [token, setToken] = useState('');
   const [pedindo, setPedindo] = useState(false);
   const [erro, setErro] = useState<Falha | null>(null);
@@ -96,7 +97,7 @@ export default function ConectarBanco({ conexaoId, rotulo }: Props) {
 
   return (
     <div>
-      <button type="button" onClick={() => void abrir()} disabled={pedindo || !!token || ocupado}>
+      <button type="button" className={secundario ? 'secundario' : undefined} onClick={() => void abrir()} disabled={pedindo || !!token || ocupado}>
         {pedindo ? 'Abrindo…' : rotulo ?? 'Conectar banco'}
       </button>
       {erro && <AvisoDeFalha falha={erro} />}
@@ -118,6 +119,7 @@ export default function ConectarBanco({ conexaoId, rotulo }: Props) {
           connectToken={token}
           // conectores de teste do Pluggy só fora de produção
           includeSandbox={process.env.NODE_ENV !== 'production'}
+          {...(conectorId !== undefined ? { selectedConnectorId: conectorId } : {})}
           onSuccess={({ item }) => void gravar(item.id)}
           onError={(e) => {
             // erro que traz o item (ex.: o banco recusou o login depois de criá-lo): o callback

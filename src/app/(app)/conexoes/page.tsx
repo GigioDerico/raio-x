@@ -1,7 +1,8 @@
-import ConectarBanco from '@/components/ajustes/ConectarBanco';
 import AcaoConexao from '@/components/conexoes/AcaoConexao';
+import GuiaMeuPluggy from '@/components/conexoes/GuiaMeuPluggy';
 import { listarConexoes } from '@/lib/pluggy/conexao-repo';
 import { estadoDaConexao } from '@/lib/pluggy/estado';
+import { CONECTOR_MEU_PLUGGY } from '@/lib/pluggy/meu-pluggy';
 import { exigirUsuario } from '@/lib/sessao-servidor';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,7 @@ export default async function Conexoes() {
   const userId = await exigirUsuario();
   const conexoes = await listarConexoes(userId);
   const agora = new Date();
+  const temMeuPluggy = conexoes.some((c) => c.conectorId === CONECTOR_MEU_PLUGGY);
 
   return (
     <div className="tela-conexoes">
@@ -21,11 +23,13 @@ export default async function Conexoes() {
       </header>
 
       {conexoes.length === 0 ? (
-        <section className="cartao vazio">
-          <h2>Nenhum banco conectado</h2>
-          <p className="suave">Conecte um banco para os lançamentos chegarem sem PDF. A senha fica com o banco e o Pluggy.</p>
-          <ConectarBanco />
-        </section>
+        <>
+          <section className="cartao vazio">
+            <h2>Nenhum banco conectado</h2>
+            <p className="suave">Conecte seus bancos para os lançamentos chegarem sem PDF. A senha fica com o banco e o Pluggy.</p>
+          </section>
+          <GuiaMeuPluggy titulo="Como conectar" temMeuPluggy={false} />
+        </>
       ) : (
         <>
           <ul className="conexoes-lista">
@@ -63,10 +67,7 @@ export default async function Conexoes() {
               );
             })}
           </ul>
-          <section className="cartao ajustes-bloco">
-            <h2>Conectar outro banco</h2>
-            <ConectarBanco />
-          </section>
+          <GuiaMeuPluggy titulo="Conectar outro banco" temMeuPluggy={temMeuPluggy} />
         </>
       )}
     </div>

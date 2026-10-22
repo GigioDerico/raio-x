@@ -1017,6 +1017,33 @@ section.block { margin-top: 30px; }
   /* --crit em texto pequeno no escuro falha AA, como em .chip.crit */
   .conexao-estado-texto.erro_login, .conexao-estado-texto.consentimento, .conexao-estado-texto.consentimento_perto, .conexao-estado-texto.erro { color: #f87171; }
 }
+
+/* guia do Meu Pluggy: passos numerados, cada um com sua ação */
+.guia-passos { list-style: none; counter-reset: passo; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+.guia-passos > li { counter-increment: passo; position: relative; padding-left: 44px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.guia-passos > li::before {
+  content: counter(passo);
+  position: absolute; left: 0; top: -2px;
+  width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px;
+}
+.guia-passos > li:not(:last-child)::after {
+  content: ''; position: absolute; left: 14px; top: 34px; bottom: -14px; width: 2px; background: var(--hair);
+}
+.guia-passos strong { font-size: 15px; }
+.guia-passos .suave { font-size: 14px; }
+.guia-passos button, .guia-passos a.botao { margin-top: 4px; min-height: 44px; }
+a.botao.secundario, button.secundario {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--accent); border: 1px solid var(--accent);
+}
+a.botao.secundario:hover, button.secundario:hover:not([disabled]) { background: var(--accent-soft); }
+.guia-rodape { margin: 18px 0 0; font-size: 13px; }
+.guia-outro { margin-top: 14px; border-top: 1px solid var(--hair); padding-top: 12px; }
+.guia-outro summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 14px; color: var(--muted); }
+.guia-outro summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.guia-outro p { margin: 0 0 10px; font-size: 14px; }
 button.link.perigo-texto { color: var(--crit); }
 /* :not(.link): o "×" de excluir da lista é button.link.perigo e não pode ganhar
    fundo vermelho. Branco fixo porque --btn-ink escurece no tema escuro e

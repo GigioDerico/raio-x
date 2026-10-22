@@ -131,6 +131,7 @@ export type EstadoConexao = (typeof connectionStatus.enumValues)[number];
 export type ConexaoListada = {
   id: string;
   banco: string;
+  conectorId: number | null;
   logoUrl: string | null;
   cor: string | null;
   status: EstadoConexao;
@@ -153,6 +154,7 @@ export const listarConexoes = cache(async function listarConexoes(userId: string
     .select({
       id: connection.id,
       banco: institution.nome,
+      conectorId: institution.pluggyConnectorId,
       logoUrl: institution.logoUrl,
       cor: institution.cor,
       status: connection.status,
