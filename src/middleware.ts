@@ -6,7 +6,7 @@ import { COOKIE_FILTRO, completarComCookie } from '@/lib/filtro';
  * Tudo é privado por padrão. A lista abaixo é o que fica de fora — e é curta
  * de propósito: rota nova nasce protegida sem ninguém precisar lembrar.
  */
-const PUBLICAS = ['/login', '/api/auth/login', '/api/health'];
+const PUBLICAS = ['/login', '/landing', '/api/auth/login', '/api/health'];
 
 // Rotas com segredo próprio, que não usam cookie (cron e webhook, fatia 5).
 // Caminho exato, não prefixo: rota nova debaixo de /api/cron/ não pode nascer sem sessão por engano.
