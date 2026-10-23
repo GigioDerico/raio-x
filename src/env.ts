@@ -42,8 +42,8 @@ const schema = z.object({
   PLUGGY_CLIENT_ID: z.string().optional(),
   PLUGGY_CLIENT_SECRET: z.string().optional(),
   PLUGGY_WEBHOOK_SECRET: segredoOpcional('PLUGGY_WEBHOOK_SECRET'),
-  // IA multi-provedor (openrouter | anthropic | openai)
-  IA_PROVEDOR: z.enum(['openrouter', 'anthropic', 'openai']).default('openrouter'),
+  // IA multi-provedor (claude-cli | codex-cli | openrouter | anthropic | openai)
+  IA_PROVEDOR: z.enum(['claude-cli', 'codex-cli', 'openrouter', 'anthropic', 'openai']).default('openrouter'),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   IA_MODEL: z.string().optional(),

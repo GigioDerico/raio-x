@@ -1,6 +1,7 @@
 import 'server-only';
 import type { NextRequest } from 'next/server';
 import { salvarConfig } from '@/lib/ajustes-repo';
+import { executarClaudeCli, executarCodexCli } from '@/lib/cli-runner';
 import { ErroDeUso, comUsuario, corpoJson } from '@/lib/rota';
 import { atualizarEnvLocal } from '@/lib/salvar-env';
 
@@ -13,6 +14,8 @@ type CorpoRequisicao = {
 };
 
 const MODELOS_PADRAO: Record<string, string> = {
+  'claude-cli': 'claude-code-cli',
+  'codex-cli': 'codex-cli',
   anthropic: 'claude-3-5-sonnet-20241022',
   openai: 'gpt-4o',
   openrouter: 'anthropic/claude-sonnet-4.5',
@@ -90,8 +93,55 @@ export async function POST(req: NextRequest) {
   return comUsuario(async (userId) => {
     const corpo = await corpoJson<CorpoRequisicao>(req);
     const prov = typeof corpo?.provedor === 'string' ? corpo.provedor.trim().toLowerCase() : '';
-    if (!['anthropic', 'openai', 'openrouter'].includes(prov)) {
-      throw new ErroDeUso('provedor_invalido', 'Escolha um provedor válido: Anthropic, OpenAI ou OpenRouter');
+    if (!['claude-cli', 'codex-cli', 'anthropic', 'openai', 'openrouter'].includes(prov)) {
+      throw new ErroDeUso('provedor_invalido', 'Escolha um provedor válido');
+    }
+
+    const padrao = MODELOS_PADRAO[prov]!;
+    const modelo = typeof corpo?.modelo === 'string' && corpo.modelo.trim() ? corpo.modelo.trim() : padrao;
+
+    let ms = 0;
+
+    if (prov === 'claude-cli') {
+      const t0 = Date.now();
+      try {
+        await executarClaudeCli('Responda apenas "ok"');
+      } catch (e) {
+        throw new ErroDeUso('falha_cli', e instanceof Error ? e.message : 'Claude CLI indisponível');
+      }
+      ms = Date.now() - t0;
+
+      process.env.IA_PROVEDOR = 'claude-cli';
+      process.env.IA_MODEL = modelo;
+
+      const salvoNoArquivo = atualizarEnvLocal({
+        IA_PROVEDOR: 'claude-cli',
+        IA_MODEL: modelo,
+      });
+
+      await salvarConfig(userId, { modeloIa: modelo });
+      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo };
+    }
+
+    if (prov === 'codex-cli') {
+      const t0 = Date.now();
+      try {
+        await executarCodexCli('Responda apenas "ok"');
+      } catch (e) {
+        throw new ErroDeUso('falha_cli', e instanceof Error ? e.message : 'Codex CLI indisponível');
+      }
+      ms = Date.now() - t0;
+
+      process.env.IA_PROVEDOR = 'codex-cli';
+      process.env.IA_MODEL = modelo;
+
+      const salvoNoArquivo = atualizarEnvLocal({
+        IA_PROVEDOR: 'codex-cli',
+        IA_MODEL: modelo,
+      });
+
+      await salvarConfig(userId, { modeloIa: modelo });
+      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo };
     }
 
     const apiKey = typeof corpo?.apiKey === 'string' ? corpo.apiKey.trim() : '';
@@ -99,10 +149,6 @@ export async function POST(req: NextRequest) {
       throw new ErroDeUso('chave_obrigatoria', 'Cole a chave de API para conectar');
     }
 
-    const padrao = MODELOS_PADRAO[prov]!;
-    const modelo = typeof corpo?.modelo === 'string' && corpo.modelo.trim() ? corpo.modelo.trim() : padrao;
-
-    let ms = 0;
     try {
       if (prov === 'anthropic') {
         const res = await testarAnthropic(apiKey, modelo);
@@ -120,19 +166,16 @@ export async function POST(req: NextRequest) {
 
     const chaveVar = prov === 'anthropic' ? 'ANTHROPIC_API_KEY' : prov === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY';
 
-    // Atualiza variáveis em memória para uso imediato nesta execução
     process.env.IA_PROVEDOR = prov;
     process.env[chaveVar] = apiKey;
     process.env.IA_MODEL = modelo;
 
-    // Persiste no .env.local
     const salvoNoArquivo = atualizarEnvLocal({
       IA_PROVEDOR: prov,
       [chaveVar]: apiKey,
       IA_MODEL: modelo,
     });
 
-    // Salva o modelo padrão nas configurações do usuário
     await salvarConfig(userId, { modeloIa: modelo });
 
     return {

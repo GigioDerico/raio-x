@@ -5,18 +5,17 @@ import type { ReservaIA } from './ia-limite';
 import { calcularCustoUsd } from './ia-precos';
 import { lerLinhaSse } from './sse';
 import { lerLinhaSseAnthropic } from './sse-anthropic';
+import { executarClaudeCli, executarCodexCli, streamClaudeCli, streamCodexCli } from './cli-runner';
 
 /**
  * Cliente unificado de IA do Raio-X.
  *
- * Suporta 3 provedores:
+ * Suporta:
+ * - 'claude-cli': Claude Code CLI (Assinatura Claude Pro/Max)
+ * - 'codex-cli': OpenAI Codex CLI (Assinatura ChatGPT Plus / Codex)
  * - 'openrouter': OpenRouter API (agregador multi-modelo)
  * - 'anthropic': Anthropic Claude API oficial
  * - 'openai': OpenAI GPT API oficial
- *
- * Toda chamada de modelo do app passa por aqui — é o único lugar com as chaves, e
- * o único ponto onde dado sai da sua infraestrutura. O que pode ir no prompt
- * está definido em `ia.ts`; aqui só se cuida do transporte.
  */
 
 const URL_OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions';
@@ -28,14 +27,18 @@ export type Uso = { tokensIn: number; tokensOut: number; custoUsd: number | null
 export class SemChaveIA extends Error {
   constructor(mensagem?: string) {
     const prov = env.IA_PROVEDOR;
-    const chave = prov === 'anthropic' ? 'ANTHROPIC_API_KEY' : prov === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY';
-    super(mensagem ?? `${chave} não configurada`);
+    let chave = 'OPENROUTER_API_KEY';
+    if (prov === 'claude-cli') chave = 'Claude Code CLI não autenticado no terminal (rode `claude login`)';
+    else if (prov === 'codex-cli') chave = 'Codex CLI não autenticado no terminal (rode `codex login`)';
+    else if (prov === 'anthropic') chave = 'ANTHROPIC_API_KEY não configurada';
+    else if (prov === 'openai') chave = 'OPENAI_API_KEY não configurada';
+    else chave = 'OPENROUTER_API_KEY não configurada';
+    super(mensagem ?? chave);
     this.name = 'SemChaveIA';
   }
 }
 
 export class RespostaNaoJson extends Error {
-  // a chamada custou mesmo devolvendo texto ilegível: quem registra o gasto precisa do uso
   constructor(
     readonly bruto: string,
     readonly modelo?: string,
@@ -48,12 +51,13 @@ export class RespostaNaoJson extends Error {
 
 export type EventoStream = { tipo: 'texto'; t: string } | { tipo: 'fim'; modelo: string; uso: Uso };
 
-export function provedorAtivo(): 'openrouter' | 'anthropic' | 'openai' {
+export function provedorAtivo(): 'claude-cli' | 'codex-cli' | 'openrouter' | 'anthropic' | 'openai' {
   return env.IA_PROVEDOR;
 }
 
 export function iaConfigurada(): boolean {
   const prov = env.IA_PROVEDOR;
+  if (prov === 'claude-cli' || prov === 'codex-cli') return true;
   if (prov === 'anthropic') return Boolean(env.ANTHROPIC_API_KEY);
   if (prov === 'openai') return Boolean(env.OPENAI_API_KEY);
   return Boolean(env.OPENROUTER_API_KEY);
@@ -61,6 +65,12 @@ export function iaConfigurada(): boolean {
 
 export function modelosPadrao(): { principal: string; fallback: string } {
   const prov = env.IA_PROVEDOR;
+  if (prov === 'claude-cli') {
+    return { principal: 'claude-code-cli', fallback: 'claude-code-cli' };
+  }
+  if (prov === 'codex-cli') {
+    return { principal: 'codex-cli', fallback: 'codex-cli' };
+  }
   if (prov === 'anthropic') {
     return {
       principal: env.IA_MODEL || 'claude-3-5-sonnet-20241022',
@@ -187,6 +197,8 @@ async function chamarOpenAI(modelo: string, prompt: string, sinal?: AbortSignal)
 
 async function chamarAtivo(modelo: string, prompt: string, sinal?: AbortSignal) {
   const prov = env.IA_PROVEDOR;
+  if (prov === 'claude-cli') return executarClaudeCli(prompt, sinal);
+  if (prov === 'codex-cli') return executarCodexCli(prompt, sinal);
   if (prov === 'anthropic') return chamarAnthropic(modelo, prompt, sinal);
   if (prov === 'openai') return chamarOpenAI(modelo, prompt, sinal);
   return chamarOpenRouter(modelo, prompt, sinal);
@@ -345,6 +357,15 @@ export async function* pedirTextoEmStream(
   );
 
   const prov = env.IA_PROVEDOR;
+  if (prov === 'claude-cli') {
+    yield* streamClaudeCli(entrada, opcoes.sinal);
+    return;
+  }
+  if (prov === 'codex-cli') {
+    yield* streamCodexCli(entrada, opcoes.sinal);
+    return;
+  }
+
   let ultimoErro: unknown;
 
   for (const modelo of tentativas) {

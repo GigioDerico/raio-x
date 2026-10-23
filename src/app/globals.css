@@ -995,6 +995,32 @@ section.block { margin-top: 30px; }
   font-size: 10px; padding: 2px 6px; border-radius: 999px;
   background: var(--good); color: #fff; font-weight: 700; line-height: 1;
 }
+.conectar-ia-badge-tipo {
+  font-size: 10.5px; padding: 2px 7px; border-radius: 999px;
+  background: var(--plane); color: var(--muted); font-weight: 500; line-height: 1.2; border: 1px solid var(--hair);
+}
+.conectar-ia-badge-tipo.assinatura {
+  background: rgba(16, 185, 129, 0.12); color: #047857; border-color: rgba(16, 185, 129, 0.3); font-weight: 600;
+}
+.conectar-ia-status-box {
+  padding: 12px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px;
+  border: 1px solid var(--hair);
+}
+.conectar-ia-status-box.ok {
+  background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); color: var(--ink);
+}
+.conectar-ia-status-box.alerta {
+  background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.3); color: var(--ink);
+}
+.conectar-ia-status-box code {
+  background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 12px; border: 1px solid var(--hair);
+}
+.conectar-ia-cli-vantagens {
+  margin: 0 0 14px; padding-left: 18px; font-size: 12.5px; color: var(--muted); line-height: 1.5;
+}
+.conectar-ia-cli-vantagens li {
+  margin-bottom: 4px;
+}
 .conectar-ia-painel {
   padding: 16px; border: 1px solid var(--hair); border-radius: 12px; background: var(--surface);
 }
@@ -1021,6 +1047,12 @@ section.block { margin-top: 30px; }
 @media (prefers-color-scheme: dark) {
   /* --crit em texto pequeno no escuro falha AA, como em .chip.crit */
   .ia-gasto.acima b, .ia-aviso { color: #f87171; }
+  .conectar-ia-badge-tipo.assinatura {
+    background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.35);
+  }
+  .conectar-ia-status-box.ok {
+    background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35);
+  }
 }
 .ajustes-dados-acoes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .conectar-resumo { margin: 8px 0 0; padding-left: 18px; font-size: 14px; }

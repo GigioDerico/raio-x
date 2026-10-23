@@ -9,6 +9,7 @@ import { env } from '@/env';
 import { gastoDoMes } from '@/lib/ia-uso-repo';
 import { resumoGasto } from '@/lib/ia-gasto';
 import { iaConfigurada, modelosPadrao, provedorAtivo } from '@/lib/openrouter';
+import { detectarClis } from '@/lib/cli-detector';
 import { exigirUsuario } from '@/lib/sessao-servidor';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,17 @@ export default async function Ajustes() {
   const prov = provedorAtivo();
   const temChave = iaConfigurada();
   const padrao = modelosPadrao();
-  const nomeProv = prov === 'anthropic' ? 'Anthropic Claude' : prov === 'openai' ? 'OpenAI GPT' : 'OpenRouter';
+  const clis = detectarClis();
+  const nomeProv =
+    prov === 'claude-cli'
+      ? 'Claude Code (Assinatura Local)'
+      : prov === 'codex-cli'
+        ? 'Codex CLI (Assinatura Local)'
+        : prov === 'anthropic'
+          ? 'Anthropic Claude'
+          : prov === 'openai'
+            ? 'OpenAI GPT'
+            : 'OpenRouter';
 
   return (
     <div className="tela-ajustes">
@@ -109,7 +120,7 @@ export default async function Ajustes() {
           </p>
         </div>
 
-        <ConectarIa provedorAtual={prov} temChave={temChave} />
+        <ConectarIa provedorAtual={prov} temChave={temChave} clisDisponiveis={clis} />
 
         <div className="ajustes-campos" style={{ marginTop: '16px' }}>
           <CampoAjuste url="/api/ajustes" campo="modeloIa" rotulo={`Modelo (${nomeProv})`} tipo="texto" max={100} valor={formatarCampo('texto', config.modeloIa)} placeholder={padrao.principal} />
@@ -134,7 +145,7 @@ export default async function Ajustes() {
           )}
         </div>
         <p className="ajustes-nota">
-          O modelo vale para leitura de faturas, categorização e plano. Teto 0 = sem teto; vazio = padrão do servidor. Para trocar de provedor ou chave, execute <code>npm run setup:ia</code>.
+          O modelo vale para leitura de faturas, categorização e plano. Teto 0 = sem teto; vazio = padrão do servidor. Para trocar de método ou provedor, use as opções acima ou execute <code>npm run setup:ia</code>.
         </p>
       </section>
 

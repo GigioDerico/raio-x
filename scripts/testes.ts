@@ -70,6 +70,7 @@ import { resumoDoErro } from '../src/lib/log';
 import { camposDaAcao, planejarSync, type Acao, type Existente } from '../src/lib/pluggy/planejar';
 import { criarClientePluggy, SemChavePluggy } from '../src/lib/pluggy/http';
 import { BILL, CNPJ_LOJA, CONTA_CARTAO, CONTA_CORRENTE, CPF_TITULAR, NOME_TITULAR, tx } from './fixture-pluggy';
+import { detectarClis } from '../src/lib/cli-detector';
 
 let falhas = 0;
 
@@ -1857,6 +1858,9 @@ async function main() {
   checar('custo ia: claude-3-5-sonnet', calcularCustoUsd('claude-3-5-sonnet-20241022', 1000, 1000) === 0.018);
   checar('custo ia: gpt-4o-mini', calcularCustoUsd('gpt-4o-mini', 1000, 1000) === 0.00075);
   checar('custo ia: modelo desconhecido é null', calcularCustoUsd('modelo-desconhecido-x', 1000, 1000) === null);
+
+  const clis = detectarClis();
+  checar('cli detector: flags booleanas válidas', typeof clis.temClaude === 'boolean' && typeof clis.temCodex === 'boolean');
 
   process.stdout.write(falhas === 0 ? '\nTodos os testes passaram.\n' : `\n${falhas} falha(s).\n`);
   process.exitCode = falhas === 0 ? 0 : 1;
