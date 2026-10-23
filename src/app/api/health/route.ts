@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 /**
  * Diz se o app fala com o banco. Não expõe versão, host nem nome de tabela —
  * página de saúde é alvo de reconhecimento.
