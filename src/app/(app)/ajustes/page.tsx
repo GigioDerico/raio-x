@@ -20,6 +20,7 @@ export default async function Ajustes() {
   const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
   const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
   const prov = provedorAtivo();
+  const ehAssinatura = prov === 'claude-cli' || prov === 'codex-cli';
   const temChave = iaConfigurada();
   const padrao = modelosPadrao();
   const clis = detectarClis();
@@ -123,29 +124,60 @@ export default async function Ajustes() {
         <ConectarIa provedorAtual={prov} temChave={temChave} clisDisponiveis={clis} />
 
         <div className="ajustes-campos" style={{ marginTop: '16px' }}>
-          <CampoAjuste url="/api/ajustes" campo="modeloIa" rotulo={`Modelo (${nomeProv})`} tipo="texto" max={100} valor={formatarCampo('texto', config.modeloIa)} placeholder={padrao.principal} />
-          <CampoAjuste url="/api/ajustes" campo="tetoIaUsd" rotulo="Teto mensal (US$)" tipo="numero" valor={formatarCampo('numero', config.tetoIaUsd)} placeholder={`${env.AI_BUDGET_USD_MONTH} (padrão)`} atualizarTela />
+          <CampoAjuste
+            url="/api/ajustes"
+            campo="modeloIa"
+            rotulo={`Modelo (${nomeProv})`}
+            tipo="texto"
+            max={100}
+            valor={formatarCampo('texto', config.modeloIa)}
+            placeholder={padrao.principal}
+          />
+          {!ehAssinatura && (
+            <CampoAjuste
+              url="/api/ajustes"
+              campo="tetoIaUsd"
+              rotulo="Teto mensal (US$)"
+              tipo="numero"
+              valor={formatarCampo('numero', config.tetoIaUsd)}
+              placeholder={`${env.AI_BUDGET_USD_MONTH} (padrão)`}
+              atualizarTela
+            />
+          )}
         </div>
         <TestarIa />
-        <div className={`ia-gasto${resumo.acima ? ' acima' : ''}`}>
-          <p>
-            <b>{usd(resumo.gasto)}</b>
-            {resumo.teto ? ` de ${usd(resumo.teto)}` : ''} este mês · {resumo.chamadas} {resumo.chamadas === 1 ? 'chamada' : 'chamadas'}
-          </p>
-          {resumo.pct !== null && (
-            <div className="ia-barra" role="img" aria-label={`${Math.round(resumo.pct)}% do teto`}>
-              <span style={{ width: `${resumo.pct}%` }} />
-            </div>
-          )}
-          {resumo.acima && <p className="ia-aviso">Passou do teto deste mês. A categorização automática parou; o que você pede por botão continua.</p>}
-          {resumo.semCusto > 0 && (
-            <p className="ajustes-nota">
-              {resumo.semCusto} {resumo.semCusto === 1 ? 'chamada' : 'chamadas'} sem custo informado pelo provedor.
+        {ehAssinatura ? (
+          <div className="ia-gasto ia-gasto-assinatura">
+            <p>
+              <b>Assinatura ativa · R$ 0,00 de tokens</b>
             </p>
-          )}
-        </div>
+            <p className="suave" style={{ fontSize: '13px', margin: '4px 0 0' }}>
+              Uso ilimitado incluído no seu plano · {resumo.chamadas} {resumo.chamadas === 1 ? 'chamada realizada' : 'chamadas realizadas'} este mês
+            </p>
+          </div>
+        ) : (
+          <div className={`ia-gasto${resumo.acima ? ' acima' : ''}`}>
+            <p>
+              <b>{usd(resumo.gasto)}</b>
+              {resumo.teto ? ` de ${usd(resumo.teto)}` : ''} este mês · {resumo.chamadas} {resumo.chamadas === 1 ? 'chamada' : 'chamadas'}
+            </p>
+            {resumo.pct !== null && (
+              <div className="ia-barra" role="img" aria-label={`${Math.round(resumo.pct)}% do teto`}>
+                <span style={{ width: `${resumo.pct}%` }} />
+              </div>
+            )}
+            {resumo.acima && <p className="ia-aviso">Passou do teto deste mês. A categorização automática parou; o que você pede por botão continua.</p>}
+            {resumo.semCusto > 0 && (
+              <p className="ajustes-nota">
+                {resumo.semCusto} {resumo.semCusto === 1 ? 'chamada' : 'chamadas'} sem custo informado pelo provedor.
+              </p>
+            )}
+          </div>
+        )}
         <p className="ajustes-nota">
-          O modelo vale para leitura de faturas, categorização e plano. Teto 0 = sem teto; vazio = padrão do servidor. Para trocar de método ou provedor, use as opções acima ou execute <code>npm run setup:ia</code>.
+          {ehAssinatura
+            ? 'O modelo vale para leitura de faturas, categorização e plano. As chamadas são processadas diretamente no seu terminal local sem custos adicionais de API.'
+            : 'O modelo vale para leitura de faturas, categorização e plano. Teto 0 = sem teto; vazio = padrão do servidor. Para trocar de método ou provedor, use as opções acima ou execute npm run setup:ia.'}
         </p>
       </section>
 

@@ -1044,9 +1044,25 @@ section.block { margin-top: 30px; }
 .ia-gasto.acima .ia-barra span { background: var(--crit); }
 .ia-gasto.acima b, .ia-aviso { color: var(--crit); }
 .ia-aviso { font-size: 12px; margin-top: 6px; }
+.ia-gasto-assinatura {
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.07);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+}
+.ia-gasto-assinatura b {
+  color: #047857;
+}
 @media (prefers-color-scheme: dark) {
   /* --crit em texto pequeno no escuro falha AA, como em .chip.crit */
   .ia-gasto.acima b, .ia-aviso { color: #f87171; }
+  .ia-gasto-assinatura {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .ia-gasto-assinatura b {
+    color: #34d399;
+  }
   .conectar-ia-badge-tipo.assinatura {
     background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.35);
   }
