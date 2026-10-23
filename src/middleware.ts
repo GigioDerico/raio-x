@@ -36,7 +36,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // API responde 401; página manda para o login
+  // Não autenticado:
+  // Se for a raiz '/', exibe a landing page sem alterar a URL do navegador
+  if (pathname === '/') {
+    return NextResponse.rewrite(new URL('/landing', req.url));
+  }
+
+  // API responde 401; qualquer outra página privada manda para o login
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ erro: 'nao_autenticado' }, { status: 401 });
   }
