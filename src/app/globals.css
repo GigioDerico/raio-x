@@ -1053,6 +1053,18 @@ section.block { margin-top: 30px; }
 .ia-gasto-assinatura b {
   color: #047857;
 }
+.ia-sessao-bloco {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(16, 185, 129, 0.2);
+}
+.ia-sessao-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
 @media (prefers-color-scheme: dark) {
   /* --crit em texto pequeno no escuro falha AA, como em .chip.crit */
   .ia-gasto.acima b, .ia-aviso { color: #f87171; }

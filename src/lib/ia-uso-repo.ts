@@ -28,7 +28,13 @@ export async function registrarUso(userId: string, kind: 'extracao' | 'plano' | 
   }
 }
 
-export type GastoDoMes = { gasto: number; chamadas: number; semCusto: number };
+export type GastoDoMes = {
+  gasto: number;
+  chamadas: number;
+  semCusto: number;
+  tokensIn?: number;
+  tokensOut?: number;
+};
 
 export async function gastoDoMes(userId: string): Promise<GastoDoMes> {
   // o mês é o do dono, em São Paulo — não o do servidor em UTC
@@ -38,10 +44,18 @@ export async function gastoDoMes(userId: string): Promise<GastoDoMes> {
       gasto: sql<string>`coalesce(sum(${aiUso.custoUsd}), 0)`,
       chamadas: sql<number>`count(*)::int`,
       semCusto: sql<number>`count(*) filter (where ${aiUso.custoUsd} is null)::int`,
+      tokensIn: sql<number>`coalesce(sum(${aiUso.tokensIn}), 0)::int`,
+      tokensOut: sql<number>`coalesce(sum(${aiUso.tokensOut}), 0)::int`,
     })
     .from(aiUso)
     .where(and(eq(aiUso.userId, userId), gte(aiUso.criadoEm, inicio)));
-  return { gasto: Number(linha?.gasto ?? 0), chamadas: linha?.chamadas ?? 0, semCusto: linha?.semCusto ?? 0 };
+  return {
+    gasto: Number(linha?.gasto ?? 0),
+    chamadas: linha?.chamadas ?? 0,
+    semCusto: linha?.semCusto ?? 0,
+    tokensIn: Number(linha?.tokensIn ?? 0),
+    tokensOut: Number(linha?.tokensOut ?? 0),
+  };
 }
 
 const quando = (v: unknown): Date | null => (v == null ? null : new Date(v as string | Date));

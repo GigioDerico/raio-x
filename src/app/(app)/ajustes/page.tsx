@@ -9,18 +9,30 @@ import { env } from '@/env';
 import { gastoDoMes } from '@/lib/ia-uso-repo';
 import { resumoGasto } from '@/lib/ia-gasto';
 import { iaConfigurada, modelosPadrao, provedorAtivo } from '@/lib/openrouter';
-import { detectarClis } from '@/lib/cli-detector';
+import { detectarClis, obterInfoClaude, obterInfoCodex } from '@/lib/cli-detector';
 import { exigirUsuario } from '@/lib/sessao-servidor';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Ajustes() {
   const userId = await exigirUsuario();
-  const [config, cartoes, contas, gasto] = await Promise.all([lerConfig(userId), listarCartoes(userId), listarContasCorrentes(userId), gastoDoMes(userId)]);
-  const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
-  const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
   const prov = provedorAtivo();
   const ehAssinatura = prov === 'claude-cli' || prov === 'codex-cli';
+
+  const [config, cartoes, contas, gasto, infoCli] = await Promise.all([
+    lerConfig(userId),
+    listarCartoes(userId),
+    listarContasCorrentes(userId),
+    gastoDoMes(userId),
+    prov === 'claude-cli'
+      ? obterInfoClaude()
+      : prov === 'codex-cli'
+        ? obterInfoCodex()
+        : Promise.resolve(null),
+  ]);
+
+  const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
+  const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
   const temChave = iaConfigurada();
   const padrao = modelosPadrao();
   const clis = detectarClis();
@@ -148,11 +160,71 @@ export default async function Ajustes() {
         <TestarIa />
         {ehAssinatura ? (
           <div className="ia-gasto ia-gasto-assinatura">
-            <p>
-              <b>Assinatura ativa · R$ 0,00 de tokens</b>
-            </p>
-            <p className="suave" style={{ fontSize: '13px', margin: '4px 0 0' }}>
-              Uso ilimitado incluído no seu plano · {resumo.chamadas} {resumo.chamadas === 1 ? 'chamada realizada' : 'chamadas realizadas'} este mês
+            <div className="ia-assinatura-cabecalho">
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '13.5px' }}>
+                  {infoCli?.plano || 'Assinatura ativa'} {infoCli?.email ? `· ${infoCli.email}` : ''}
+                </p>
+                <p className="suave" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+                  {infoCli?.logado ? '✓ Sessão CLI conectada localmente' : '⚠️ Sessão local pendente de login'} · R$ 0,00 de tokens de API
+                </p>
+              </div>
+            </div>
+
+            {infoCli?.usoSessao && (
+              <div className="ia-sessao-bloco">
+                <div className="ia-sessao-linha">
+                  <span>
+                    Cota da sessão: <strong>{infoCli.usoSessao.sessaoPct}% utilizada</strong>
+                  </span>
+                  {infoCli.usoSessao.sessaoReset && (
+                    <span className="suave" style={{ fontSize: '11.5px' }}>
+                      Reseta: {infoCli.usoSessao.sessaoReset.replace(/\s*\(America\/Sao_Paulo\)/i, ' (SP)')}
+                    </span>
+                  )}
+                </div>
+                <div className="ia-barra" role="img" aria-label={`${infoCli.usoSessao.sessaoPct}% da sessão utilizada`}>
+                  <span
+                    style={{
+                      width: `${Math.min(100, infoCli.usoSessao.sessaoPct)}%`,
+                      background:
+                        infoCli.usoSessao.sessaoPct >= 85
+                          ? 'var(--crit)'
+                          : infoCli.usoSessao.sessaoPct >= 65
+                            ? 'var(--warn, #eab308)'
+                            : 'var(--good, #10b981)',
+                    }}
+                  />
+                </div>
+
+                {typeof infoCli.usoSessao.semanaPct === 'number' && (
+                  <div style={{ marginTop: '10px' }}>
+                    <div className="ia-sessao-linha">
+                      <span style={{ fontSize: '12px' }}>
+                        Uso semanal: <strong>{infoCli.usoSessao.semanaPct}% utilizado</strong>
+                      </span>
+                      {infoCli.usoSessao.semanaReset && (
+                        <span className="suave" style={{ fontSize: '11.5px' }}>
+                          Reseta: {infoCli.usoSessao.semanaReset.replace(/\s*\(America\/Sao_Paulo\)/i, ' (SP)')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="ia-barra" role="img" aria-label={`${infoCli.usoSessao.semanaPct}% da semana utilizada`}>
+                      <span
+                        style={{
+                          width: `${Math.min(100, infoCli.usoSessao.semanaPct)}%`,
+                          background: 'var(--accent)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="suave" style={{ fontSize: '12.5px', margin: '8px 0 0' }}>
+              Volume no Raio-X: {resumo.chamadas} {resumo.chamadas === 1 ? 'chamada' : 'chamadas'} este mês
+              {(gasto.tokensIn ?? 0) + (gasto.tokensOut ?? 0) > 0 ? ` · ${((gasto.tokensIn ?? 0) + (gasto.tokensOut ?? 0)).toLocaleString('pt-BR')} tokens processados` : ''} · Sem custo por token
             </p>
           </div>
         ) : (
