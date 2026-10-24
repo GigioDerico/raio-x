@@ -13,17 +13,35 @@ import { segredoOpcional } from '@/lib/segredo';
 
 const proibidos = ['', 'troque-me', 'changeme', 'exemplo', 'example', 'seu-valor-aqui'];
 
-// O refine tem de ser o ÚLTIMO elo da corrente: ele devolve ZodEffects, que já
-// não expõe .url()/.regex()/.min(). Por isso as regras de formato entram na base.
-const semPlaceholder = (nome: string, base: z.ZodString = z.string()) =>
-  base.min(1, `${nome} não pode ficar vazio`).refine(
-    (v) => !proibidos.includes(v.trim().toLowerCase()),
-    `${nome} ainda está com o valor de exemplo do .env.example`,
+// Remove aspas simples/duplas acidentais, prefixo "VAR_NAME=" e "psql" copiados de dashboards
+const sanitizar = (nome: string, v: unknown): unknown => {
+  if (typeof v !== 'string') return v;
+  return v
+    .trim()
+    .replace(new RegExp(`^${nome}\\s*=\\s*`, 'i'), '')
+    .replace(/^psql\\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+};
+
+const semPlaceholder = <T extends z.ZodType<string>>(nome: string, base: T) =>
+  z.preprocess(
+    (v) => sanitizar(nome, v),
+    base.refine(
+      (v) => !proibidos.includes(v.trim().toLowerCase()) && v.trim().length > 0,
+      `${nome} não pode ficar vazio ou com valor de exemplo`,
+    ),
   );
 
 const schema = z.object({
-  DATABASE_URL: semPlaceholder('DATABASE_URL', z.string().url('DATABASE_URL precisa ser uma URL')),
-  DATABASE_URL_UNPOOLED: z.string().url().optional(),
+  DATABASE_URL: semPlaceholder(
+    'DATABASE_URL',
+    z.string().url('DATABASE_URL precisa ser uma URL válida (ex.: postgresql://usuario:senha@host/banco)'),
+  ),
+  DATABASE_URL_UNPOOLED: z.preprocess((v) => {
+    const limpo = sanitizar('DATABASE_URL_UNPOOLED', v);
+    return typeof limpo === 'string' && limpo.length > 0 ? limpo : undefined;
+  }, z.string().url('DATABASE_URL_UNPOOLED precisa ser uma URL válida').optional()),
 
   // Sessão e senha única
   APP_PASSWORD_HASH: semPlaceholder(
