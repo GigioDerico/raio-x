@@ -76,10 +76,10 @@ npm run hash-senha
 ```
 *Copie os valores gerados de `APP_PASSWORD_HASH` e `SESSION_SECRET` para o seu `.env.local`.*
 
-Configure o banco de dados no `.env.local`:
+Configure as strings de conexão do banco de dados no `.env.local`:
 ```env
-DATABASE_URL="postgres://usuario:senha@ep-xyz.neon.tech/neondb?sslmode=require"
-DATABASE_URL_UNPOOLED="postgres://usuario:senha@ep-xyz-pooler.neon.tech/neondb?sslmode=require"
+DATABASE_URL="postgresql://usuario:senha@host/banco?sslmode=require"
+DATABASE_URL_UNPOOLED="postgresql://usuario:senha@host-pooler/banco?sslmode=require"
 ```
 
 ### 3. Configurar a IA
