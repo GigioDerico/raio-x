@@ -133,6 +133,67 @@ Ideal se você prefere manter o controle total da infraestrutura em um servidor 
 
 ---
 
+## 🧭 Como Funciona o Fluxo Após Subir o App (Pós-Deploy)
+
+Depois que o app estiver rodando (na Vercel ou na sua VPS), o fluxo de ativação é direto e leva menos de 5 minutos:
+
+```mermaid
+flowchart LR
+    S1["🟢 Passo 1<br><b>Acesso /login</b><br>Entrar com sua senha mestra"] 
+    --> S2["🏦 Passo 2<br><b>Open Finance & PDF</b><br>Conectar Nubank, Itaú, etc."] 
+    --> S3["🎯 Passo 3<br><b>Definir Renda</b><br>Ativar margem de escolha"] 
+    --> S4["✨ Passo 4<br><b>Painel Ativo</b><br>Sync diário automático"]
+```
+
+1. **Acesso Restrito:** Vá direto na rota `/login` (ela é privada e não há botões públicos de login na landing page). Entre com a senha configurada no seu `APP_PASSWORD_HASH`.
+2. **Conectar Contas:** Na aba **Conexões**, conecte seus bancos pelo Meu Pluggy (Open Finance gratuito). Se tiver cartões não suportados ou faturas passadas, arraste o `.pdf` na aba **Lançamentos** (leitura 100% local e privada).
+3. **Definir Renda Mensal:** Na aba **Ajustes**, informe sua renda mensal líquida. Isso ativa o cálculo de `% da renda comprometida` e separa os gastos **Decididos** (fixos + parcelas) da sua **Margem de Escolha**.
+4. **Ajuste Fino:** Ao renomear estabelecimentos na lista de lançamentos, o app aprende e aplica para todos os lançamentos futuros automaticamente.
+5. **Rotina Zero Manutenção:** O cron da Vercel (`/api/cron/sync`) roda todo dia às 09:00 e sincroniza novas compras automaticamente.
+
+Consulte o guia completo em [docs/fluxo-configuracao.md](docs/fluxo-configuracao.md).
+
+---
+
+## 🇧🇷 Guia de Configuração do Meu Pluggy (Open Finance Gratuito)
+
+O [Meu Pluggy](https://www.pluggy.ai/meu-pluggy) permite conectar até 5 bancos (Nubank, Itaú, Santander, Inter, BB, etc.) com **API gratuita e sem prazo de expiração** para uso pessoal.
+
+### O Pulo do Gato: Entendendo os 2 Sites
+
+| Ambiente | O que fazer nele |
+| :--- | :--- |
+| **`meu.pluggy.ai`** | **Onde os bancos se conectam:** Você cria a conta de usuário e autoriza seus bancos via Open Finance no app do banco. |
+| **`dashboard.pluggy.ai`** | **Onde a API é gerada:** Você cria uma aplicação, copia as chaves `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` e faz a ponte. |
+
+### Fluxo de Conexão em 6 Passos:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Voce as Você
+    participant MP as meu.pluggy.ai
+    participant Banco as Seu Banco (Open Finance)
+    participant Dash as dashboard.pluggy.ai
+    participant RaioX as Seu Raio-X
+
+    Voce->>MP: 1. Cria conta gratuita no meu.pluggy.ai
+    Voce->>MP: 2. Clica em "Conectar Minha Conta" e autoriza no app do banco
+    Banco->>MP: Contas conectadas com sucesso (100% somente leitura)
+    Voce->>Dash: 3. Cria conta no dashboard.pluggy.ai
+    Voce->>Dash: 4. Cria uma Aplicação (ex: "Raio-X")
+    Voce->>Dash: 5. Copia PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET
+    Voce->>Dash: 6. Na Aplicação: Conectar Conta -> Escolhe "MeuPluggy" (e faz login)
+    Voce->>RaioX: Salva as chaves no .env.local ou na Vercel
+    RaioX->>Dash: Sincronização diária automática ativa!
+```
+
+> ⚠️ **Atenção no Passo 6 (Onde muitos erram):** Dentro do Dashboard, ao conectar a conta na sua aplicação, **NÃO escolha o seu banco e NÃO escolha Sandbox**. Escolha o conector chamado **"MeuPluggy"** e faça login com a conta do `meu.pluggy.ai`. É esse conector que faz a ponte para liberar os dados para o Raio-X!
+
+Consulte o passo a passo com prints e detalhes em [docs/guia-meu-pluggy.md](docs/guia-meu-pluggy.md).
+
+---
+
 ## 📱 Acesso no Celular (Como App PWA)
 
 O Raio-X foi planejado para uso em telas mobile de 390px, com menu inferior rápido e responsividade nativa. Você pode utilizá-lo como um aplicativo no seu smartphone:
