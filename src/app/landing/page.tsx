@@ -269,134 +269,158 @@ export default function LandingPage() {
 
         <div className="landing-flow-card">
           <div className="landing-flow-top">
-            <span className="flow-pill-title">Arquitetura de Conexão</span>
+            <div className="flow-top-left">
+              <span className="flow-pill-title">Arquitetura de Conexão</span>
+              <span className="flow-pill-badge">Ponte Oficial MeuPluggy</span>
+            </div>
             <span className="flow-pill-status">
               <span className="pulse-green" /> 100% Somente Leitura · Autorizado pelo Banco Central
             </span>
+          </div>
+
+          {/* Stepper visual do fluxo */}
+          <div className="landing-flow-stepper" aria-hidden="true">
+            <div className="stepper-step ativo">
+              <span className="step-num">01</span>
+              <span className="step-label">Conectar Bancos</span>
+            </div>
+            <div className="stepper-arrow">
+              <span className="arrow-line" />
+              <span className="arrow-tag">Open Finance</span>
+              <span className="arrow-head">→</span>
+            </div>
+            <div className="stepper-step ativo">
+              <span className="step-num">02</span>
+              <span className="step-label">Gerar Chaves & Ponte</span>
+            </div>
+            <div className="stepper-arrow">
+              <span className="arrow-line" />
+              <span className="arrow-tag">API Segura</span>
+              <span className="arrow-head">→</span>
+            </div>
+            <div className="stepper-step ativo destaque">
+              <span className="step-num">03</span>
+              <span className="step-label">Raio-X Sincronizado</span>
+            </div>
           </div>
 
           <div className="landing-flow-grid">
             {/* Bloco 1: meu.pluggy.ai */}
             <div className="flow-col">
               <div className="flow-box">
-                <div className="flow-box-head">
-                  <span className="flow-step-tag">Passo 1 & 2</span>
-                  <h3>meu.pluggy.ai</h3>
-                  <p>Onde você conecta suas contas</p>
+                <div className="flow-box-header-bar verde">
+                  <span className="bar-tag">Passo 1</span>
+                  <span className="bar-url">meu.pluggy.ai</span>
                 </div>
+                <div className="flow-box-body">
+                  <h4>Conexão das Contas</h4>
+                  <p className="flow-box-sub">Onde você autoriza seus bancos</p>
 
-                <div className="flow-bancos-grid">
-                  <div className="banco-chip">
-                    <span className="banco-logo nu-bg">nu</span>
-                    <span className="banco-nome">Nubank</span>
-                    <span className="banco-status">✓ Ativa</span>
+                  <div className="flow-bancos-chips">
+                    <div className="banco-pill">
+                      <span className="banco-logo nu-bg">nu</span>
+                      <span className="banco-txt">Nubank</span>
+                      <span className="banco-check">✓</span>
+                    </div>
+                    <div className="banco-pill">
+                      <span className="banco-logo itau-bg">Itaú</span>
+                      <span className="banco-txt">Itaú</span>
+                      <span className="banco-check">✓</span>
+                    </div>
+                    <div className="banco-pill">
+                      <span className="banco-logo inter-bg">inter</span>
+                      <span className="banco-txt">Inter</span>
+                      <span className="banco-check">✓</span>
+                    </div>
+                    <div className="banco-pill">
+                      <span className="banco-logo santander-bg">SAN</span>
+                      <span className="banco-txt">Santander</span>
+                      <span className="banco-check">✓</span>
+                    </div>
+                    <div className="banco-pill">
+                      <span className="banco-logo bb-bg">BB</span>
+                      <span className="banco-txt">Banco do Brasil</span>
+                      <span className="banco-check">✓</span>
+                    </div>
                   </div>
-                  <div className="banco-chip">
-                    <span className="banco-logo itau-bg">Itaú</span>
-                    <span className="banco-nome">Itaú</span>
-                    <span className="banco-status">✓ Ativa</span>
-                  </div>
-                  <div className="banco-chip">
-                    <span className="banco-logo inter-bg">inter</span>
-                    <span className="banco-nome">Inter</span>
-                    <span className="banco-status">✓ Ativa</span>
-                  </div>
-                  <div className="banco-chip">
-                    <span className="banco-logo santander-bg">SAN</span>
-                    <span className="banco-nome">Santander / BB</span>
-                    <span className="banco-status">✓ Ativa</span>
-                  </div>
-                </div>
 
-                <div className="flow-box-desc">
-                  Você faz login no Meu Pluggy e autoriza o consentimento no app do seu banco com segurança total.
+                  <p className="flow-box-desc">
+                    Você conecta até 5 contas com autorização oficial no app do seu banco com segurança total.
+                  </p>
                 </div>
               </div>
-            </div>
-
-            {/* Ponte Central */}
-            <div className="flow-connector-bridge">
-              <div className="bridge-line" />
-              <div className="bridge-badge">
-                <span>Ponte</span>
-                <strong>MeuPluggy</strong>
-                <span>Conexão Segura</span>
-              </div>
-              <div className="bridge-line" />
             </div>
 
             {/* Bloco 2: dashboard.pluggy.ai */}
             <div className="flow-col">
               <div className="flow-box">
-                <div className="flow-box-head">
-                  <span className="flow-step-tag">Passo 3 a 6</span>
-                  <h3>dashboard.pluggy.ai</h3>
-                  <p>Onde a API é gerada e vinculada</p>
+                <div className="flow-box-header-bar verde">
+                  <span className="bar-tag">Passo 2</span>
+                  <span className="bar-url">dashboard.pluggy.ai</span>
                 </div>
+                <div className="flow-box-body">
+                  <h4>Geração de API & Ponte</h4>
+                  <p className="flow-box-sub">Onde as credenciais são criadas</p>
 
-                <div className="flow-keys-card">
-                  <div className="key-line">
-                    <span className="key-label">CLIENT_ID</span>
-                    <span className="key-val">cli_94f83b10...</span>
+                  <div className="flow-keys-card">
+                    <div className="key-line">
+                      <span className="key-label">CLIENT_ID</span>
+                      <span className="key-val">cli_94f83b10...</span>
+                    </div>
+                    <div className="key-line">
+                      <span className="key-label">CLIENT_SECRET</span>
+                      <span className="key-val">••••••••••••••••</span>
+                    </div>
                   </div>
-                  <div className="key-line">
-                    <span className="key-label">CLIENT_SECRET</span>
-                    <span className="key-val">••••••••••••••••••••••••</span>
-                  </div>
-                </div>
 
-                <div className="flow-connector-active">
-                  <div className="connector-icon-box">
-                    <span className="connector-icon">P</span>
+                  <div className="flow-connector-active">
+                    <div className="connector-icon-box">P</div>
+                    <div className="connector-info">
+                      <strong>Conector "MeuPluggy"</strong>
+                      <span>Ponte autorizada para entrega</span>
+                    </div>
+                    <span className="connector-badge-ok">Ativo</span>
                   </div>
-                  <div className="connector-info">
-                    <strong>Conector "MeuPluggy"</strong>
-                    <span>Liberado para entrega de dados</span>
-                  </div>
-                  <span className="connector-badge-ok">Ativo</span>
-                </div>
 
-                <div className="flow-box-desc">
-                  No Dashboard você pega as chaves de API e ativa o conector <code>MeuPluggy</code> para liberar o repasse.
+                  <p className="flow-box-desc">
+                    No Dashboard você gera as chaves e ativa o conector especial <code>MeuPluggy</code> para liberar o repasse.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Ponte para Raio-X */}
-            <div className="flow-connector-bridge">
-              <div className="bridge-line" />
-              <div className="bridge-badge raio">
-                <span>Entrega</span>
-                <strong>API Segura</strong>
-                <span>Sync Diário</span>
-              </div>
-              <div className="bridge-line" />
-            </div>
-
-            {/* Bloco 3: Raio-X */}
+            {/* Bloco 3: Seu Raio-X */}
             <div className="flow-col">
               <div className="flow-box destaque">
-                <div className="flow-box-head">
-                  <span className="flow-step-tag">Resultado</span>
-                  <h3>Seu Raio-X</h3>
-                  <p>Seus dados protegidos no seu banco</p>
+                <div className="flow-box-header-bar raio">
+                  <span className="bar-tag">Resultado</span>
+                  <span className="bar-url">Seu Raio-X</span>
                 </div>
+                <div className="flow-box-body">
+                  <h4>Painel 100% Pessoal</h4>
+                  <p className="flow-box-sub">Seus dados protegidos no seu banco</p>
 
-                <div className="flow-raiox-kpis">
-                  <div className="raiox-kpi">
-                    <span className="rotulo">Atualização Automática</span>
-                    <strong>Todo dia às 09:00</strong>
-                    <span className="tag">Cron na Vercel</span>
+                  <div className="flow-raiox-kpis">
+                    <div className="raiox-kpi">
+                      <span className="rotulo">Atualização Automática</span>
+                      <strong>Todo dia às 09:00</strong>
+                      <span className="tag">Cron na Vercel</span>
+                    </div>
+                    <div className="raiox-kpi">
+                      <span className="rotulo">Faturas & Lançamentos</span>
+                      <strong className="verde">Últimos 90 dias</strong>
+                      <span className="tag">Conciliação inteligente</span>
+                    </div>
+                    <div className="raiox-kpi">
+                      <span className="rotulo">Banco de Dados</span>
+                      <strong>PostgreSQL (Neon)</strong>
+                      <span className="tag">Acesso exclusivo seu</span>
+                    </div>
                   </div>
-                  <div className="raiox-kpi">
-                    <span className="rotulo">Faturas & Lançamentos</span>
-                    <strong className="verde">Últimos 90 dias</strong>
-                    <span className="tag">Conciliação inteligente</span>
-                  </div>
-                </div>
 
-                <div className="flow-box-desc">
-                  O Raio-X puxa despesas e faturas sem intervenção manual. Fica tudo salvo no seu PostgreSQL (Neon).
+                  <p className="flow-box-desc">
+                    O Raio-X puxa despesas e faturas sem nenhuma intervenção manual.
+                  </p>
                 </div>
               </div>
             </div>
