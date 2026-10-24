@@ -23,18 +23,15 @@ export default function LandingPage() {
             <a href="#diferencial">O que muda</a>
             <a href="#recursos">Recursos</a>
             <a href="#comparativo">Comparativo</a>
-            <a
-              href="https://github.com/GigioDerico/raio-x"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="landing-link-github"
-            >
-              GitHub ↗
-            </a>
           </nav>
-          <Link href="/login" className="landing-btn-entrar">
-            Entrar no App
-          </Link>
+          <a
+            href="https://github.com/GigioDerico/raio-x"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="landing-btn-entrar"
+          >
+            GitHub ↗
+          </a>
         </div>
       </header>
 
@@ -60,16 +57,16 @@ export default function LandingPage() {
         </p>
 
         <div className="landing-ctas">
-          <Link href="/login" className="landing-btn-primario">
-            Começar Agora <span>→</span>
-          </Link>
           <a
             href="https://github.com/GigioDerico/raio-x"
             target="_blank"
             rel="noopener noreferrer"
-            className="landing-btn-secundario"
+            className="landing-btn-primario"
           >
-            Ver no GitHub (Open Source) <span>↗</span>
+            Ver Código no GitHub <span>↗</span>
+          </a>
+          <a href="#diferencial" className="landing-btn-secundario">
+            Como Funciona <span>↓</span>
           </a>
         </div>
 
@@ -314,19 +311,24 @@ export default function LandingPage() {
       {/* Banner Final CTA */}
       <section className="landing-cta-final">
         <div className="landing-cta-card">
-          <h2>Pronto para entender seu dinheiro de verdade?</h2>
-          <p>Instale na sua máquina ou suba na sua conta Vercel em poucos minutos.</p>
+          <h2>Código aberto, seguro e auto-hospedável</h2>
+          <p>Clone o repositório, configure suas chaves e rode em minutos no seu próprio ambiente ou na Vercel.</p>
           <div className="landing-ctas">
-            <Link href="/login" className="landing-btn-primario">
-              Acessar Minha Instalação <span>→</span>
-            </Link>
             <a
               href="https://github.com/GigioDerico/raio-x"
               target="_blank"
               rel="noopener noreferrer"
+              className="landing-btn-primario"
+            >
+              Ver no GitHub <span>↗</span>
+            </a>
+            <a
+              href="https://github.com/GigioDerico/raio-x#readme"
+              target="_blank"
+              rel="noopener noreferrer"
               className="landing-btn-secundario"
             >
-              Documentação no GitHub ↗
+              Guia de Instalação ↗
             </a>
           </div>
         </div>
@@ -347,7 +349,6 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="landing-rodape-links">
-            <Link href="/login">Entrar</Link>
             <a href="https://github.com/GigioDerico/raio-x" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
