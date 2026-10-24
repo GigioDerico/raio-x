@@ -22,6 +22,7 @@ export default function LandingPage() {
           <nav className="landing-nav-links">
             <a href="#diferencial">O que muda</a>
             <a href="#recursos">Recursos</a>
+            <a href="#open-finance">Open Finance</a>
             <a href="#comparativo">Comparativo</a>
           </nav>
           <a
@@ -251,6 +252,179 @@ export default function LandingPage() {
             <p>
               Adicione à tela de início do seu iPhone ou Android e use em tela cheia com a mesma fluidez e responsividade de um aplicativo nativo da loja.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Seção Fluxo Open Finance (Meu Pluggy) */}
+      <section id="open-finance" className="landing-secao">
+        <div className="landing-secao-cabecalho">
+          <span className="landing-secao-tag">Open Finance Oficial & Gratuito</span>
+          <h2>Como funciona a conexão com o Meu Pluggy</h2>
+          <p className="landing-secao-desc">
+            A Pluggy é autorizada pelo Banco Central. O plano pessoal do Meu Pluggy permite conectar até 5 bancos
+            com API gratuita e sem prazo de expiração. Veja como a ponte de dados funciona na prática:
+          </p>
+        </div>
+
+        <div className="landing-flow-card">
+          <div className="landing-flow-top">
+            <span className="flow-pill-title">Arquitetura de Conexão</span>
+            <span className="flow-pill-status">
+              <span className="pulse-green" /> 100% Somente Leitura · Autorizado pelo Banco Central
+            </span>
+          </div>
+
+          <div className="landing-flow-grid">
+            {/* Bloco 1: meu.pluggy.ai */}
+            <div className="flow-col">
+              <div className="flow-box">
+                <div className="flow-box-head">
+                  <span className="flow-step-tag">Passo 1 & 2</span>
+                  <h3>meu.pluggy.ai</h3>
+                  <p>Onde você conecta suas contas</p>
+                </div>
+
+                <div className="flow-bancos-grid">
+                  <div className="banco-chip">
+                    <span className="banco-logo nu-bg">nu</span>
+                    <span className="banco-nome">Nubank</span>
+                    <span className="banco-status">✓ Ativa</span>
+                  </div>
+                  <div className="banco-chip">
+                    <span className="banco-logo itau-bg">Itaú</span>
+                    <span className="banco-nome">Itaú</span>
+                    <span className="banco-status">✓ Ativa</span>
+                  </div>
+                  <div className="banco-chip">
+                    <span className="banco-logo inter-bg">inter</span>
+                    <span className="banco-nome">Inter</span>
+                    <span className="banco-status">✓ Ativa</span>
+                  </div>
+                  <div className="banco-chip">
+                    <span className="banco-logo santander-bg">SAN</span>
+                    <span className="banco-nome">Santander / BB</span>
+                    <span className="banco-status">✓ Ativa</span>
+                  </div>
+                </div>
+
+                <div className="flow-box-desc">
+                  Você faz login no Meu Pluggy e autoriza o consentimento no app do seu banco com segurança total.
+                </div>
+              </div>
+            </div>
+
+            {/* Ponte Central */}
+            <div className="flow-connector-bridge">
+              <div className="bridge-line" />
+              <div className="bridge-badge">
+                <span>Ponte</span>
+                <strong>MeuPluggy</strong>
+                <span>Conexão Segura</span>
+              </div>
+              <div className="bridge-line" />
+            </div>
+
+            {/* Bloco 2: dashboard.pluggy.ai */}
+            <div className="flow-col">
+              <div className="flow-box">
+                <div className="flow-box-head">
+                  <span className="flow-step-tag">Passo 3 a 6</span>
+                  <h3>dashboard.pluggy.ai</h3>
+                  <p>Onde a API é gerada e vinculada</p>
+                </div>
+
+                <div className="flow-keys-card">
+                  <div className="key-line">
+                    <span className="key-label">CLIENT_ID</span>
+                    <span className="key-val">cli_94f83b10...</span>
+                  </div>
+                  <div className="key-line">
+                    <span className="key-label">CLIENT_SECRET</span>
+                    <span className="key-val">••••••••••••••••••••••••</span>
+                  </div>
+                </div>
+
+                <div className="flow-connector-active">
+                  <div className="connector-icon-box">
+                    <span className="connector-icon">P</span>
+                  </div>
+                  <div className="connector-info">
+                    <strong>Conector "MeuPluggy"</strong>
+                    <span>Liberado para entrega de dados</span>
+                  </div>
+                  <span className="connector-badge-ok">Ativo</span>
+                </div>
+
+                <div className="flow-box-desc">
+                  No Dashboard você pega as chaves de API e ativa o conector <code>MeuPluggy</code> para liberar o repasse.
+                </div>
+              </div>
+            </div>
+
+            {/* Ponte para Raio-X */}
+            <div className="flow-connector-bridge">
+              <div className="bridge-line" />
+              <div className="bridge-badge raio">
+                <span>Entrega</span>
+                <strong>API Segura</strong>
+                <span>Sync Diário</span>
+              </div>
+              <div className="bridge-line" />
+            </div>
+
+            {/* Bloco 3: Raio-X */}
+            <div className="flow-col">
+              <div className="flow-box destaque">
+                <div className="flow-box-head">
+                  <span className="flow-step-tag">Resultado</span>
+                  <h3>Seu Raio-X</h3>
+                  <p>Seus dados protegidos no seu banco</p>
+                </div>
+
+                <div className="flow-raiox-kpis">
+                  <div className="raiox-kpi">
+                    <span className="rotulo">Atualização Automática</span>
+                    <strong>Todo dia às 09:00</strong>
+                    <span className="tag">Cron na Vercel</span>
+                  </div>
+                  <div className="raiox-kpi">
+                    <span className="rotulo">Faturas & Lançamentos</span>
+                    <strong className="verde">Últimos 90 dias</strong>
+                    <span className="tag">Conciliação inteligente</span>
+                  </div>
+                </div>
+
+                <div className="flow-box-desc">
+                  O Raio-X puxa despesas e faturas sem intervenção manual. Fica tudo salvo no seu PostgreSQL (Neon).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Pilares Rápidos */}
+          <div className="landing-flow-beneficios">
+            <div className="flow-beneficio">
+              <span className="beneficio-icon">🛡️</span>
+              <div>
+                <strong>Acesso Somente Leitura</strong>
+                <p>Nenhuma permissão para movimentar dinheiro, fazer Pix ou transferências.</p>
+              </div>
+            </div>
+            <div className="flow-beneficio">
+              <span className="beneficio-icon">⏱️</span>
+              <div>
+                <strong>Gratuito & Vitalício</strong>
+                <p>Plano pessoal oficial da Pluggy para até 5 conexões ativas do mesmo titular.</p>
+              </div>
+            </div>
+            <div className="flow-beneficio">
+              <span className="beneficio-icon">🔒</span>
+              <div>
+                <strong>Chaves 100% Suas</strong>
+                <p>As chaves de API ficam salvas exclusivamente na sua Vercel ou servidor local.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
