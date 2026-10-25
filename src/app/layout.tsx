@@ -8,8 +8,18 @@ import '@fontsource/familjen-grotesk/400-italic.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Raio-X',
+  title: {
+    default: 'Raio-X',
+    template: '%s · Raio-X',
+  },
   description: 'Painel pessoal de finanças — Open Finance e faturas em PDF no mesmo lugar.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
   robots: { index: false, follow: false },
 };
 

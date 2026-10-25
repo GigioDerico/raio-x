@@ -2,7 +2,9 @@ import Link from 'next/link';
 import Lente from '@/components/Lente';
 
 export const metadata = {
-  title: 'Raio-X — A verdade sobre o seu dinheiro, sem planilhas',
+  title: {
+    absolute: 'Raio-X — A verdade sobre o seu dinheiro, sem planilhas',
+  },
   description:
     'Painel pessoal de finanças que junta Open Finance brasileiro e faturas em PDF em um só lugar. 100% privado, auto-hospedável e sem mensalidades.',
 };
