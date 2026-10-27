@@ -13,6 +13,13 @@ type Props = {
     temClaude: boolean;
     temCodex: boolean;
   };
+  ambiente?: 'local' | 'online';
+  modoAtual?: 'auto' | 'local' | 'cloud';
+  chavesSalvas?: {
+    openrouter?: boolean;
+    anthropic?: boolean;
+    openai?: boolean;
+  };
 };
 
 type DetalhesMetodo = {
@@ -90,13 +97,21 @@ const DETALHES_PROVEDOR: Record<ProvedorIa, DetalhesMetodo> = {
   },
 };
 
-const ORDEM_METODOS: ProvedorIa[] = ['claude-cli', 'codex-cli', 'anthropic', 'openai', 'openrouter'];
+const ORDEM_METODOS: ProvedorIa[] = ['openrouter', 'anthropic', 'openai', 'claude-cli', 'codex-cli'];
 
-export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }: Props) {
+export default function ConectarIa({
+  provedorAtual,
+  temChave,
+  clisDisponiveis,
+  ambiente = 'local',
+  modoAtual = 'auto',
+  chavesSalvas,
+}: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
   const [selecionado, setSelecionado] = useState<ProvedorIa>(provedorAtual);
+  const [modo, setModo] = useState<'auto' | 'local' | 'cloud'>(modoAtual);
   const [apiKey, setApiKey] = useState('');
   const [modelo, setModelo] = useState('');
   const [mostrarChave, setMostrarChave] = useState(false);
@@ -107,6 +122,9 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
   const info = DETALHES_PROVEDOR[selecionado];
   const ehAtivo = selecionado === provedorAtual && temChave;
   const ehCli = info.tipo === 'cli';
+  const chaveJaSalva = Boolean(
+    !ehCli && chavesSalvas?.[selecionado as 'openrouter' | 'anthropic' | 'openai'],
+  );
 
   const cliDetectado =
     selecionado === 'claude-cli'
@@ -115,6 +133,37 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
         ? (clisDisponiveis?.temCodex ?? true)
         : false;
 
+  async function trocarModo(novoModo: 'auto' | 'local' | 'cloud') {
+    setModo(novoModo);
+    setCarregando(true);
+    setSucesso(null);
+    setErro(null);
+    try {
+      const r = await buscar('/api/ajustes/ia', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          provedor: selecionado,
+          modo: novoModo,
+        }),
+      });
+
+      if (!r.ok) throw await falhaDe(r);
+      const modoDesc =
+        novoModo === 'auto'
+          ? 'Automático (Inteligente)'
+          : novoModo === 'local'
+            ? 'Forçar Local (CLI)'
+            : 'Forçar Nuvem (API)';
+      setSucesso(`✓ Modo alterado para "${modoDesc}".`);
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setErro(textoDoErro(err, navigator.onLine).texto);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
   async function conectar(e: React.FormEvent) {
     e.preventDefault();
     setCarregando(true);
@@ -122,23 +171,32 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
     setErro(null);
 
     try {
+      const chaveParaEnvio = ehCli ? undefined : apiKey.trim() || undefined;
       const r = await buscar('/api/ajustes/ia', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           provedor: selecionado,
-          apiKey: ehCli ? undefined : apiKey,
+          apiKey: chaveParaEnvio,
           modelo: modelo.trim() || undefined,
+          modo,
         }),
       });
 
       if (!r.ok) throw await falhaDe(r);
-      const d = (await r.json()) as { ok: boolean; modelo: string; latenciaMs: number; salvoNoArquivo: boolean };
+      const d = (await r.json()) as {
+        ok: boolean;
+        modelo: string;
+        latenciaMs: number;
+        salvoNoArquivo: boolean;
+        salvoNoBanco?: boolean;
+      };
 
-      const msgCusto = ehCli ? 'Custo de API: R$ 0,00 (coberto pela sua assinatura).' : 'Tokens cobrados na sua conta de API.';
+      const msgCusto = ehCli
+        ? 'Custo de API: R$ 0,00 (coberto pela sua assinatura).'
+        : 'Chave gravada com criptografia militar (AES-256) no seu banco de dados.';
       setSucesso(
-        `✓ Conectado com sucesso! ${info.nome} respondeu em ${(d.latenciaMs / 1000).toFixed(2)}s. ${msgCusto}` +
-          (d.salvoNoArquivo ? ' Configuração gravada no .env.local.' : ''),
+        `✓ Conectado com sucesso! ${info.nome} respondeu em ${(d.latenciaMs / 1000).toFixed(2)}s. ${msgCusto}`,
       );
       setApiKey('');
       startTransition(() => router.refresh());
@@ -151,11 +209,62 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
 
   return (
     <div className="conectar-ia-container">
+      {/* Bloco de Ambiente e Modo de Conexão */}
+      <div className="conectar-ia-ambiente-card">
+        <div className="conectar-ia-ambiente-header">
+          <div className="conectar-ia-ambiente-status">
+            <span className={`conectar-ia-ambiente-ponto ${ambiente === 'local' ? 'local' : 'nuvem'}`} />
+            <strong>
+              {ambiente === 'local' ? 'Ambiente Detectado: Local (Mac)' : 'Ambiente Detectado: Nuvem (Vercel / Online)'}
+            </strong>
+          </div>
+          <p className="suave" style={{ margin: '4px 0 0', fontSize: '12.5px' }}>
+            {ambiente === 'local'
+              ? 'Você está rodando no seu Mac. Pode usar o Claude/Codex CLI com custo zero ou alternar para APIs na nuvem.'
+              : 'Executando na nuvem. A conexão usa as chaves de API salvas com criptografia no seu banco de dados Neon.'}
+          </p>
+        </div>
+
+        <div className="conectar-ia-seletor-linha">
+          <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>Comportamento:</span>
+          <div className="conectar-ia-seletor-botoes" role="radiogroup" aria-label="Modo de conexão de IA">
+            <button
+              type="button"
+              className={`conectar-ia-seletor-btn${modo === 'auto' ? ' ativo' : ''}`}
+              onClick={() => void trocarModo('auto')}
+              disabled={carregando}
+              title="No Mac usa o CLI (R$ 0), no Online usa a chave em nuvem"
+            >
+              🟢 Automático (Recomendado)
+            </button>
+            <button
+              type="button"
+              className={`conectar-ia-seletor-btn${modo === 'local' ? ' ativo' : ''}`}
+              onClick={() => void trocarModo('local')}
+              disabled={carregando}
+              title="Sempre tenta o CLI do seu Mac"
+            >
+              💻 Forçar Local (CLI)
+            </button>
+            <button
+              type="button"
+              className={`conectar-ia-seletor-btn${modo === 'cloud' ? ' ativo' : ''}`}
+              onClick={() => void trocarModo('cloud')}
+              disabled={carregando}
+              title="Sempre usa API na nuvem (OpenRouter, Anthropic ou OpenAI)"
+            >
+              ☁️ Forçar Nuvem (API)
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="conectar-ia-metodos" role="tablist" aria-label="Métodos de conexão de IA">
         {ORDEM_METODOS.map((p) => {
           const item = DETALHES_PROVEDOR[p];
           const ativo = p === selecionado;
           const configurado = p === provedorAtual && temChave;
+          const temChaveSalva = !['claude-cli', 'codex-cli'].includes(p) && Boolean(chavesSalvas?.[p as 'openrouter' | 'anthropic' | 'openai']);
 
           return (
             <button
@@ -175,6 +284,7 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
                 {item.tag}
               </span>
               {configurado && <span className="conectar-ia-badge-ativo">Ativo</span>}
+              {!configurado && temChaveSalva && <span className="conectar-ia-badge-tipo" title="Chave guardada no banco">🔒 Salvo</span>}
             </button>
           );
         })}
@@ -197,7 +307,7 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
 
         {ehAtivo && !sucesso && (
           <div className="conectar-ia-aviso-ativo">
-            ✓ Este método já está ativo no Raio-X. Você pode retestar a conexão ou alterar o modelo abaixo:
+            ✓ Este método está ativo e operacional no Raio-X.
           </div>
         )}
 
@@ -216,12 +326,10 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
               ) : (
                 <>
                   <p style={{ margin: 0, fontWeight: 600 }}>
-                    ⚠️ CLI não encontrado no PATH do sistema
+                    ⚠️ CLI local não disponível neste ambiente
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: '12.5px' }}>
-                    Para usar sua assinatura, instale via terminal:{' '}
-                    <code>{info.comandoInstalacao}</code> e depois faça o login com{' '}
-                    <code>{info.comandoLogin}</code>.
+                    As assinaturas locais via CLI só funcionam com o app rodando diretamente no seu Mac (terminal local). Quando o app roda em servidor na nuvem (como Vercel) ou fora do Mac, use uma conexão de API em nuvem (OpenRouter, Anthropic ou OpenAI).
                   </p>
                 </>
               )}
@@ -278,16 +386,30 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
           </form>
         ) : (
           <form onSubmit={(e) => void conectar(e)} className="conectar-ia-form">
+            {chaveJaSalva && (
+              <div className="conectar-ia-status-box ok" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>🔒</span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600 }}>Chave de API salva com criptografia militar (AES-256) no banco</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+                    Sua chave já está protegida no banco Neon. Para alterar o modelo ou reativar, clique no botão abaixo sem precisar digitá-la novamente. Preencha o campo apenas se desejar substituir a chave.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="campo-ajuste">
-              <label htmlFor={`chave-${selecionado}`}>Chave de API ({info.chaveNome})</label>
+              <label htmlFor={`chave-${selecionado}`}>
+                Chave de API ({info.chaveNome}) {chaveJaSalva && <span className="suave">(já configurada no banco)</span>}
+              </label>
               <div className="conectar-ia-input-grupo">
                 <input
                   id={`chave-${selecionado}`}
                   type={mostrarChave ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={info.placeholderChave}
-                  required
+                  placeholder={chaveJaSalva ? '•••••••••••••••••••••••••••••••••••••••• (Chave gravada)' : info.placeholderChave}
+                  required={!chaveJaSalva}
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -313,8 +435,14 @@ export default function ConectarIa({ provedorAtual, temChave, clisDisponiveis }:
             </div>
 
             <div className="conectar-ia-acoes">
-              <button type="submit" disabled={carregando || !apiKey.trim()}>
-                {carregando ? 'Testando conexão…' : 'Conectar e Salvar'}
+              <button type="submit" disabled={carregando || (!chaveJaSalva && !apiKey.trim())}>
+                {carregando
+                  ? 'Testando conexão…'
+                  : apiKey.trim()
+                    ? 'Testar e Gravar Nova Chave no Banco'
+                    : chaveJaSalva
+                      ? 'Confirmar Conexão'
+                      : 'Conectar e Salvar'}
               </button>
             </div>
 

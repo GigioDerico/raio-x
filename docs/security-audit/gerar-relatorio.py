@@ -1,0 +1,943 @@
+#!/usr/bin/env python3
+"""
+Script gerador do Relatório de Auditoria de Segurança do Raio-X em PDF.
+Gera o HTML autossuficiente com gráficos SVG e compila para PDF A4 via Google Chrome headless.
+Aplica overlay de cabeçalho e rodapé profissionais com numeração de páginas via ReportLab e PyPDF.
+"""
+
+import io
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+PDF_PATH = BASE_DIR / "relatorio-auditoria-seguranca.pdf"
+HTML_PATH = BASE_DIR / "relatorio-auditoria-seguranca.html"
+PREVIEW_DIR = BASE_DIR / "preview"
+VENV_PYTHON = BASE_DIR / ".venv" / "bin" / "python3"
+
+# Se executado fora do venv, reinvoca com o Python do venv para ter reportlab e pypdf
+if VENV_PYTHON.exists() and sys.executable != str(VENV_PYTHON):
+    os.execv(str(VENV_PYTHON), [str(VENV_PYTHON)] + sys.argv)
+
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Auditoria de Segurança — Raio-X</title>
+<style>
+  @page {
+    size: A4;
+    margin: 22mm 18mm 22mm 18mm;
+  }
+  @page :first {
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1E293B;
+    font-size: 10.5px;
+    line-height: 1.5;
+    margin: 0;
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .pagina {
+    page-break-before: always;
+    padding-top: 4px;
+  }
+  .pagina:first-of-type {
+    page-break-before: avoid;
+  }
+  .evitar-quebra {
+    page-break-inside: avoid;
+  }
+
+  /* ================= Capa ================= */
+  .capa {
+    min-height: 297mm;
+    height: 297mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 32mm 24mm 24mm 24mm;
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+    page-break-after: always;
+  }
+  .capa-topo {
+    text-align: center;
+  }
+  .capa-badge {
+    display: inline-block;
+    padding: 5px 14px;
+    background: #0F172A;
+    color: #F8FAFC;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .capa h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .capa .subtitulo {
+    font-size: 13.5px;
+    color: #64748B;
+    margin-bottom: 28px;
+    font-weight: 500;
+  }
+  .capa-ficha {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 18px 22px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+    text-align: left;
+    margin-bottom: 22px;
+  }
+  .capa-ficha dt {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    margin-top: 10px;
+  }
+  .capa-ficha dt:first-child { margin-top: 0; }
+  .capa-ficha dd {
+    margin: 3px 0 0 0;
+    font-size: 10.5px;
+    color: #1E293B;
+  }
+  .capa-nota {
+    background: #F1F5F9;
+    border-left: 4px solid #0F172A;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    text-align: left;
+    font-size: 9.8px;
+    color: #334155;
+    line-height: 1.5;
+  }
+  .capa-rodape {
+    text-align: center;
+    font-size: 9px;
+    color: #94A3B8;
+  }
+
+  /* ================= Tipografia e Elementos ================= */
+  h2 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0 0 10px 0;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #E2E8F0;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 12px 0 6px 0;
+  }
+  p { margin: 5px 0; }
+
+  /* Chips de Severidade */
+  .chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #FFFFFF;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .chip-critica { background: #B91C1C; }
+  .chip-alta { background: #EA580C; }
+  .chip-media { background: #D97706; }
+  .chip-baixa { background: #2563EB; }
+  .chip-informativa { background: #6B7280; }
+  .chip-ponto-forte { background: #059669; }
+
+  /* Grid Resumo */
+  .resumo-grid {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 16px 0;
+  }
+  .cartao-resumo {
+    flex: 1;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    background: #F8FAFC;
+  }
+  .cartao-resumo .num {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .cartao-resumo .rot {
+    font-size: 8px;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 3px;
+    font-weight: 600;
+  }
+
+  /* Gráficos */
+  .graficos-linha {
+    display: flex;
+    gap: 14px;
+    margin: 8px 0 14px 0;
+  }
+  .grafico-box {
+    flex: 1;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 10px;
+    background: #FFFFFF;
+  }
+  .grafico-box h4 {
+    margin: 0 0 6px 0;
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .legenda-flex {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 8.5px;
+    margin-top: 6px;
+    color: #475569;
+  }
+  .legenda-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .legenda-bola {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* Caixas Pontos Fortes e Fracos */
+  .duas-colunas {
+    display: flex;
+    gap: 12px;
+    margin: 10px 0 12px 0;
+  }
+  .duas-colunas > div { flex: 1; }
+  .box-destaque {
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 9.8px;
+  }
+  .box-fortes {
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+  }
+  .box-fracos {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+  }
+  .box-destaque h3 {
+    margin: 0 0 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .box-destaque ul {
+    margin: 0;
+    padding-left: 14px;
+  }
+  .box-destaque li {
+    margin-bottom: 5px;
+    line-height: 1.4;
+  }
+
+  /* Tabelas */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 14px 0;
+    font-size: 9.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #E2E8F0;
+    vertical-align: top;
+  }
+  th {
+    background: #F1F5F9;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 8.5px;
+    letter-spacing: 0.04em;
+    color: #475569;
+  }
+  tr:last-child td { border-bottom: none; }
+  code {
+    font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    background: #F1F5F9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 9px;
+    color: #0F172A;
+  }
+  .localizacao {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 9px;
+    color: #334155;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  /* Recomendações */
+  .rec-lista {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+  }
+  .rec-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    background: #F8FAFC;
+    align-items: flex-start;
+  }
+  .rec-tag {
+    font-weight: 800;
+    font-size: 8.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #FFFFFF;
+    flex-shrink: 0;
+  }
+  .rec-p1 { background: #B91C1C; }
+  .rec-p2 { background: #D97706; }
+  .rec-p3 { background: #2563EB; }
+  .rec-p4 { background: #64748B; }
+
+  /* Bloco de Issues */
+  .bloco-issue {
+    margin: 12px 0 16px 0;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .issue-header {
+    background: #0F172A;
+    color: #F8FAFC;
+    padding: 7px 12px;
+    font-weight: 700;
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .issue-delimitador {
+    font-family: "SF Mono", Consolas, monospace;
+    color: #94A3B8;
+    font-size: 8.5px;
+  }
+  .issue-body {
+    padding: 10px 12px;
+    background: #FFFFFF;
+    font-size: 9.3px;
+    line-height: 1.45;
+  }
+  pre {
+    background: #0F172A;
+    color: #E2E8F0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 8.5px;
+    overflow-x: auto;
+    margin: 6px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= PÁGINA 1: CAPA ======================= -->
+<section class="capa">
+  <div class="capa-topo">
+    <div class="capa-badge">Relatório Técnico de Segurança</div>
+    <h1>Relatório de Auditoria de Segurança — Raio-X</h1>
+    <div class="subtitulo">App Pessoal de Finanças (Open Finance Pluggy + Faturas PDF)</div>
+
+    <div class="capa-ficha">
+      <dt>Data da Auditoria</dt>
+      <dd>27 de outubro de 2026</dd>
+
+      <dt>Escopo Auditado</dt>
+      <dd>
+        Código-fonte completo do projeto: todas as 33 rotas em <code>src/app/api/**/route.ts</code>, middleware de autenticação (<code>src/middleware.ts</code>), todos os 12 repositórios de banco de dados (<code>src/lib/*-repo.ts</code> e <code>src/lib/pluggy/*.ts</code>), mecanismos de autenticação e sessão (<code>auth.ts</code>, <code>session.ts</code>, <code>senha.ts</code>), integração multi-provedor de IA (<code>openrouter.ts</code>, <code>ia.ts</code>, <code>cli-runner.ts</code>, <code>cripto.ts</code>), validações de ambiente (<code>src/env.ts</code>), cabeçalhos de segurança (<code>next.config.ts</code>), workflows de CI (<code>.github/workflows/seguranca.yml</code> com Gitleaks) e histórico completo do repositório Git.
+      </dd>
+
+      <dt>Roteiro e Metodologia</dt>
+      <dd>
+        Auditoria baseada em <code>docs/security-audit/prompt-auditoria.md</code>: revisão exaustiva das cinco categorias clássicas (Banco sem tranca, Permissão no navegador, IDOR, Chaves expostas, Inputs sem tratamento / XSS) acrescida das quatro categorias específicas do projeto (Defesa contra força bruta no login, Proteção contra replay de webhook, Minimização de dados pessoais enviados para IA e Não gravação de CPF e titular).
+      </dd>
+    </div>
+
+    <div class="capa-nota">
+      <strong>Nota Metodológica & Mapeamento para a Stack:</strong><br>
+      • <strong>Stack Detectada:</strong> TypeScript 5.7, Node.js ≥ 22.9, Next.js 15.1.0 (App Router), React 19.0.0, Neon Postgres via <code>@neondatabase/serverless</code> 1.0.0 com Drizzle ORM 0.45.3, autenticação própria por senha única derivada com scrypt e cookies assinados HMAC-SHA256 (Web Crypto), sem tabela de papéis RBAC e sem Postgres RLS.<br>
+      • <strong>Mapeamento das Categorias:</strong><br>
+      1. <em>Banco sem tranca:</em> Como não há RLS, o isolamento é verificado pelo filtro estrito de <code>user_id</code> extraído exclusivamente da sessão criptográfica em todas as consultas SQL.<br>
+      2. <em>Permissão no navegador:</em> App uniusuário sem papéis; traduzido para a capacidade de cada rota privada se auto-defender contra chamadas diretas sem sessão ou sem assinatura segura.<br>
+      3. <em>IDOR:</em> Verificação sistemática de todos os 33 route handlers, garantindo que nenhum identificador passado via path, query ou body possa ler ou alterar objetos sem validação de posse no próprio <code>where</code>.<br>
+      4. <em>Chaves expostas:</em> Varredura de histórico Git, arquivos de configuração, bundles do front (zero <code>NEXT_PUBLIC_</code>) e rigor dos schemas de boot em <code>src/env.ts</code>.<br>
+      5. <em>Inputs sem tratamento:</em> Varredura de <code>dangerouslySetInnerHTML</code>, sanitização do pipeline de markdown da IA, injeção de fórmulas CSV e restrições de CSP.
+    </div>
+  </div>
+
+  <div class="capa-rodape">
+    Raio-X • Auditoria de Segurança de Código-Fonte • Documento Técnico Confidencial
+  </div>
+</section>
+
+<!-- ======================= PÁGINA 2: RESUMO EXECUTIVO ======================= -->
+<section class="pagina">
+  <h2>1. Resumo Executivo</h2>
+
+  <p>
+    A auditoria técnica exaustiva do código-fonte do <strong>Raio-X</strong> revelou uma postura de segurança excepcionalmente sólida em suas camadas fundamentais. Não foi detectada <strong>nenhuma vulnerabilidade Crítica ou Alta</strong>. O isolamento de dados por usuário e o tratamento contra IDOR são rigorosos em todos os 33 handlers de API e repositórios da aplicação.
+  </p>
+  <p>
+    Foram identificados <strong>4 achados acionáveis</strong>: 1 de severidade Média (potencial injeção de quebra de linha/CRLF no arquivo local <code>.env.local</code>), 2 de severidade Baixa (consulta sem escopo explícito de <code>user_id</code> em módulo auxiliar de IA e validação permissiva de startup para chaves opcionais de IA) e 1 Informativo (mutação dinâmica de <code>process.env</code> em tempo de execução).
+  </p>
+
+  <div class="resumo-grid">
+    <div class="cartao-resumo"><div class="num" style="color:#B91C1C">0</div><div class="rot">Crítica</div></div>
+    <div class="cartao-resumo"><div class="num" style="color:#EA580C">0</div><div class="rot">Alta</div></div>
+    <div class="cartao-resumo"><div class="num" style="color:#D97706">1</div><div class="rot">Média</div></div>
+    <div class="cartao-resumo"><div class="num" style="color:#2563EB">2</div><div class="rot">Baixa</div></div>
+    <div class="cartao-resumo"><div class="num" style="color:#6B7280">1</div><div class="rot">Informativa</div></div>
+    <div class="cartao-resumo"><div class="num" style="color:#0F172A">4</div><div class="rot">Total</div></div>
+  </div>
+
+  <div class="graficos-linha">
+    <!-- Donut por Severidade -->
+    <div class="grafico-box">
+      <h4>Distribuição por Severidade</h4>
+      <svg width="220" height="170" viewBox="0 0 220 170" style="display:block;margin:0 auto;">
+        <g transform="translate(110,80) rotate(-90)">
+          <!-- Base cinza -->
+          <circle r="52" fill="none" stroke="#F1F5F9" stroke-width="22"></circle>
+          <!-- Média (1/4 = 25% = 81.68) -->
+          <circle r="52" fill="none" stroke="#D97706" stroke-width="22"
+            stroke-dasharray="81.68 245.04" stroke-dashoffset="0"></circle>
+          <!-- Baixa (2/4 = 50% = 163.36) -->
+          <circle r="52" fill="none" stroke="#2563EB" stroke-width="22"
+            stroke-dasharray="163.36 163.36" stroke-dashoffset="-81.68"></circle>
+          <!-- Informativa (1/4 = 25% = 81.68) -->
+          <circle r="52" fill="none" stroke="#6B7280" stroke-width="22"
+            stroke-dasharray="81.68 245.04" stroke-dashoffset="-245.04"></circle>
+        </g>
+        <text x="110" y="76" text-anchor="middle" font-size="20" font-weight="800" fill="#0F172A">4</text>
+        <text x="110" y="90" text-anchor="middle" font-size="8.5" fill="#64748B">achados</text>
+      </svg>
+      <div class="legenda-flex">
+        <div class="legenda-item"><span class="legenda-bola" style="background:#B91C1C"></span>Crítica (0)</div>
+        <div class="legenda-item"><span class="legenda-bola" style="background:#EA580C"></span>Alta (0)</div>
+        <div class="legenda-item"><span class="legenda-bola" style="background:#D97706"></span>Média (1)</div>
+        <div class="legenda-item"><span class="legenda-bola" style="background:#2563EB"></span>Baixa (2)</div>
+        <div class="legenda-item"><span class="legenda-bola" style="background:#6B7280"></span>Informativa (1)</div>
+      </div>
+    </div>
+
+    <!-- Barras por Categoria -->
+    <div class="grafico-box">
+      <h4>Achados por Categoria</h4>
+      <svg width="250" height="170" viewBox="0 0 250 170" style="display:block;margin:0 auto;">
+        <!-- Linha base -->
+        <line x1="30" y1="130" x2="240" y2="130" stroke="#CBD5E1" stroke-width="1"></line>
+        <!-- Grade -->
+        <line x1="30" y1="90" x2="240" y2="90" stroke="#F1F5F9" stroke-width="1"></line>
+        <line x1="30" y1="50" x2="240" y2="50" stroke="#F1F5F9" stroke-width="1"></line>
+        <text x="25" y="133" text-anchor="end" font-size="7.5" fill="#94A3B8">0</text>
+        <text x="25" y="93" text-anchor="end" font-size="7.5" fill="#94A3B8">1</text>
+        <text x="25" y="53" text-anchor="end" font-size="7.5" fill="#94A3B8">2</text>
+
+        <!-- Cat 1 (1 achado) -->
+        <rect x="40" y="90" width="24" height="40" rx="3" fill="#2563EB"></rect>
+        <text x="52" y="142" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">Cat 1</text>
+        <text x="52" y="85" text-anchor="middle" font-size="8" fill="#0F172A" font-weight="700">1</text>
+
+        <!-- Cat 2 (1 achado) -->
+        <rect x="80" y="90" width="24" height="40" rx="3" fill="#6B7280"></rect>
+        <text x="92" y="142" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">Cat 2</text>
+        <text x="92" y="85" text-anchor="middle" font-size="8" fill="#0F172A" font-weight="700">1</text>
+
+        <!-- Cat 3 (0 achados) -->
+        <rect x="120" y="129" width="24" height="1" rx="1" fill="#CBD5E1"></rect>
+        <text x="132" y="142" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">Cat 3</text>
+        <text x="132" y="125" text-anchor="middle" font-size="8" fill="#0F172A" font-weight="700">0</text>
+
+        <!-- Cat 4 (2 achados) -->
+        <rect x="160" y="50" width="24" height="80" rx="3" fill="#D97706"></rect>
+        <text x="172" y="142" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">Cat 4</text>
+        <text x="172" y="45" text-anchor="middle" font-size="8" fill="#0F172A" font-weight="700">2</text>
+
+        <!-- Cat 5 (0 achados) -->
+        <rect x="200" y="129" width="24" height="1" rx="1" fill="#CBD5E1"></rect>
+        <text x="212" y="142" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">Cat 5</text>
+        <text x="212" y="125" text-anchor="middle" font-size="8" fill="#0F172A" font-weight="700">0</text>
+      </svg>
+      <div class="legenda-flex">
+        <span>Cat 1: Isolamento</span> •
+        <span>Cat 2: Permissões</span> •
+        <span>Cat 3: IDOR</span> •
+        <span>Cat 4: Chaves</span> •
+        <span>Cat 5: Inputs</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pontos Fortes e Pontos Fracos -->
+  <div class="duas-colunas evitar-quebra">
+    <div class="box-destaque box-fortes">
+      <h3 style="color:#065F46;">
+        <span class="chip chip-ponto-forte">✓</span> Pontos Fortes Verificados
+      </h3>
+      <ul>
+        <li><strong>Isolamento Total por Dono:</strong> Todas as 33 rotas e repositórios obtêm <code>userId</code> exclusivamente do cookie de sessão assinado; queries filtram posse diretamente na cláusula <code>where</code>.</li>
+        <li><strong>Zero IDOR:</strong> Todas as rotas de mutação com <code>[id]</code> (transações, contas, conexões) conferem UUID e titularidade no banco antes de qualquer alteração.</li>
+        <li><strong>Anti-Brute Force Exponencial:</strong> Login protegido com escalonamento de espera atômico por IP no Postgres e teto de 1 tentativa/min para todos sob ataque distribuído.</li>
+        <li><strong>Anti-Replay em Webhooks:</strong> Deduplicação atômica de <code>eventId</code> com segredo protegido por comparação em tempo constante (<code>timingSafeEqual</code>).</li>
+        <li><strong>Zero XSS e Markdown Blindado:</strong> Markdown da IA é convertido em AST e renderizado como nós React puros (sem <code>dangerouslySetInnerHTML</code>). CSV protegido contra injeção de fórmulas.</li>
+        <li><strong>Privacidade na IA:</strong> Nomes de pessoas e transferências privadas são anonimizados ("Pix pessoa A") antes de qualquer transmissão para modelos de linguagem.</li>
+      </ul>
+    </div>
+
+    <div class="box-destaque box-fracos">
+      <h3 style="color:#991B1B;">
+        <span class="chip chip-critica">!</span> Pontos de Atenção e Riscos
+      </h3>
+      <ul>
+        <li><strong>CRLF Injection em .env.local:</strong> Ausência de sanitização de quebras de linha em <code>atualizarEnvLocal</code> permite que parâmetros da API de IA injetem variáveis arbitrárias no arquivo local.</li>
+        <li><strong>Isolamento Incompleto em IA:</strong> Consulta de credenciais em <code>ia-config-repo.ts</code> usa <code>limit 1</code> sem filtrar <code>user_id</code>, quebrando a padronização arquitetural de tenant.</li>
+        <li><strong>Validação de Inicialização Frouxa:</strong> Chaves de IA multi-provedor (Anthropic, OpenAI, OpenRouter) não utilizam <code>semPlaceholder</code>, permitindo subida com valores padrão.</li>
+        <li><strong>Mutação Global de Runtime:</strong> Alteração de <code>process.env</code> em tempo de execução dentro de rota HTTP introduz risco de concorrência e estado compartilhado entre workers.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= PÁGINA 3: TABELA DE ACHADOS ======================= -->
+<section class="pagina">
+  <h2>2. Tabela de Achados Detalhados</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 14%;">Severidade</th>
+        <th style="width: 16%;">Categoria</th>
+        <th style="width: 32%;">Localização</th>
+        <th style="width: 38%;">Descrição do Problema e Exploração</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="chip chip-media">Média</span></td>
+        <td>4 · Chaves / Config</td>
+        <td>
+          <span class="localizacao">src/lib/salvar-env.ts:22-26</span><br>
+          <span class="localizacao">src/app/api/ajustes/ia/route.ts:184</span>
+        </td>
+        <td>
+          <strong>Injeção de Configuração (CRLF) em .env.local:</strong> O endpoint <code>POST /api/ajustes/ia</code> repassa <code>modelo</code> e <code>apiKey</code> para <code>atualizarEnvLocal</code> sem filtrar quebras de linha (<code>\\n</code>, <code>\\r</code>). Uma requisição autenticada com quebra de linha consegue injetar novas variáveis de ambiente arbitrárias (ex: sobrescrever <code>SESSION_SECRET</code>) no arquivo <code>.env.local</code> no disco do servidor.
+        </td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-baixa">Baixa</span></td>
+        <td>1 · Banco sem tranca</td>
+        <td><span class="localizacao">src/lib/ia-config-repo.ts:41-48</span></td>
+        <td>
+          <strong>Consulta de configuração de IA sem filtro de usuário:</strong> A função <code>carregarConfigIaBanco</code> executa <code>select ... from user_setting limit 1</code> sem a cláusula <code>where(eq(userSetting.userId, userId))</code>. Embora o app seja uniusuário, isso viola a regra arquitetural fundamental do projeto ("user_id sempre da sessão") e expõe credenciais caso mais de uma linha exista no banco.
+        </td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-baixa">Baixa</span></td>
+        <td>4 · Chaves expostas</td>
+        <td><span class="localizacao">src/env.ts:60-71</span></td>
+        <td>
+          <strong>Validação de boot permissiva para provedores de IA:</strong> As variáveis <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>OPENROUTER_API_KEY</code> e <code>PLUGGY_CLIENT_ID</code> utilizam <code>z.string().optional()</code> sem <code>semPlaceholder</code>. Se o usuário mantiver valores como <code>"seu-valor-aqui"</code> ou <code>"exemplo"</code>, o app inicializa e envia requisições com credenciais de placeholder a APIs externas.
+        </td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-informativa">Informativa</span></td>
+        <td>2 · Permissão / Runtime</td>
+        <td><span class="localizacao">src/app/api/ajustes/ia/route.ts:180-182</span></td>
+        <td>
+          <strong>Mutação dinâmica de process.env durante atendimento HTTP:</strong> A rota altera diretamente variáveis globais de <code>process.env</code> em tempo de execução. Em servidores concorrentes ou tarefas de background (como cron e webhooks), mutar o ambiente global pode ocasionar race conditions e comportamentos inesperados entre requisições simultâneas.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Análise dos Achados por Categoria</h3>
+  <div style="font-size: 9.8px; line-height: 1.5; color: #334155;">
+    <p>
+      • <strong>Categoria 1 (Banco sem tranca):</strong> O mecanismo de isolamento manual por <code>userId</code> está 100% implementado nas tabelas core financeiras (lançamentos, contas, faturas, planos, histórico de IA). A única quebra detectada ocorre na rotina recente <code>carregarConfigIaBanco</code>, que faz <code>limit 1</code> sem WHERE.
+    </p>
+    <p>
+      • <strong>Categoria 2 (Permissão no navegador):</strong> Não há RBAC; cada rota sensível exige autenticação no servidor. O achado apontado diz respeito à integridade de runtime decorrente da mutação global de <code>process.env</code> dentro de um handler HTTP.
+    </p>
+    <p>
+      • <strong>Categoria 3 (IDOR):</strong> Zero achados. 100% dos handlers validam parâmetros com UUID e asseguram posse no <code>where</code>.
+    </p>
+    <p>
+      • <strong>Categoria 4 (Chaves expostas e gestão de segredos):</strong> Repositório e commits completamente limpos. O risco médio reside na injeção CRLF ao persistir no arquivo local <code>.env.local</code> e na tolerância a placeholders em chaves de IA no boot.
+    </p>
+    <p>
+      • <strong>Categoria 5 (Inputs sem tratamento):</strong> Zero achados. Toda renderização no cliente é sanitizada e livre de <code>dangerouslySetInnerHTML</code>.
+    </p>
+  </div>
+</section>
+
+<!-- ======================= PÁGINA 4: COBERTURA DA AUDITORIA ======================= -->
+<section class="pagina">
+  <h2>3. Cobertura da Auditoria — O Que Está Verificado e Correto</h2>
+
+  <div style="font-size: 9.8px; line-height: 1.5; color: #334155;">
+    <p>
+      Abaixo registram-se os componentes auditados sistematicamente cuja proteção foi comprovada no código real:
+    </p>
+    <p>
+      • <strong>Isolamento e RLS equivalente (Cat. 1):</strong> Verificados todos os repositórios em <code>src/lib/txn-repo.ts</code> (listagem, categorização, renomeação, exclusão lógica, duplicados), <code>src/lib/painel-repo.ts</code> (contexto do painel com joins estritos de conta e usuário), <code>src/lib/plano-repo.ts</code> (gravação de planos e metas), <code>src/lib/dados-repo.ts</code> (exportação CSV e <code>apagarTudo</code> com exclusão atômica via <code>db.batch</code> filtrando <code>userId</code> em 8 tabelas).
+    </p>
+    <p>
+      • <strong>Prevenção total contra IDOR (Cat. 3):</strong> Verificados todos os 33 handlers em <code>src/app/api/**/route.ts</code>. Todas as rotas de mutação (<code>/api/txn/[id]</code>, <code>/api/accounts/[id]</code>, <code>/api/connections/[id]</code>, <code>/api/txn/bulk</code>, <code>/api/txn/papel</code>) validam formato UUID e colocam a posse no <code>where</code> da consulta de atualização ou exclusão.
+    </p>
+    <p>
+      • <strong>Rotas de Máquina e Webhook (Cat. 2):</strong> <code>/api/cron/sync</code> e <code>/api/webhook/pluggy</code> ocultam-se com 404 caso seus segredos não estejam no ambiente. Validação criptográfica via <code>segredoConfere</code> utiliza comparação em tempo constante (<code>timingSafeEqual</code>) imune a ataques de temporização.
+    </p>
+    <p>
+      • <strong>Defesa contra Força Bruta:</strong> <code>src/lib/auth.ts</code> gerencia tentativas de login atômicas diretamente no banco com intervalo exponencial e trava global após 100 falhas na hora.
+    </p>
+    <p>
+      • <strong>Deduplicação de Webhooks e Anti-Replay:</strong> <code>src/app/api/webhook/pluggy/route.ts</code> deduplica atômica e idempotentemente eventos pelo <code>eventId</code> no banco, limitando leitura de stream a 64 KB.
+    </p>
+    <p>
+      • <strong>Prevenção contra XSS e Injeção (Cat. 5):</strong> Ausência completa de <code>dangerouslySetInnerHTML</code> e <code>eval</code>. O markdown retornado por modelos de IA passa pelo parser estruturado <code>markdownLeve</code> e vira elementos React puros. Exportação CSV com escape estrito de fórmulas (prefixo <code>'</code> em <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>).
+    </p>
+    <p>
+      • <strong>Minimização de Dados para IA:</strong> Todo dado enviado passa por <code>paraIA()</code> e <code>contextoParaIA()</code> em <code>src/lib/ia.ts</code>. Lançamentos privados têm nomes de beneficiários substituídos por <code>Pix pessoa A/B</code>, e na extração do PDF nomes de pessoas são anonimizados com marcadores e restaurados somente na memória do servidor.
+    </p>
+    <p>
+      • <strong>Proteção de Segredos e Repositório Limpo:</strong> Zero variáveis <code>NEXT_PUBLIC_</code>, histórico limpo com verificação contínua no GitHub Actions (Gitleaks) e criptografia simétrica autenticada AES-256-GCM para chaves salvas no banco.
+    </p>
+  </div>
+</section>
+
+<!-- ======================= PÁGINA 5: RECOMENDAÇÕES ======================= -->
+<section class="pagina">
+  <h2>4. Recomendações Priorizadas de Remediação</h2>
+
+  <ul class="rec-lista">
+    <li class="rec-item">
+      <span class="rec-tag rec-p1">P1 · ALTA</span>
+      <div>
+        <strong>Sanitizar estritamente strings gravadas em <code>.env.local</code> (Prevenção CRLF)</strong><br>
+        Em <code>src/lib/salvar-env.ts</code>, rejeitar qualquer chave ou valor que contenha quebras de linha (<code>[\\r\\n]</code>) antes de formatar a linha de escrita. Limitar caracteres de <code>modelo</code> a slugs alfanuméricos e traços/barras (ex: <code>^[a-zA-Z0-9_\\-\\./]+$</code>).
+      </div>
+    </li>
+    <li class="rec-item">
+      <span class="rec-tag rec-p2">P2 · MÉDIA</span>
+      <div>
+        <strong>Incluir escopo de <code>userId</code> em <code>carregarConfigIaBanco</code></strong><br>
+        Adicionar o parâmetro <code>userId: string</code> em <code>carregarConfigIaBanco</code> em <code>src/lib/ia-config-repo.ts</code> e filtrar com <code>where(eq(userSetting.userId, userId))</code>. Descontinuar caches estáticos globais em memória que não sejam indexados pelo usuário autenticado.
+      </div>
+    </li>
+    <li class="rec-item">
+      <span class="rec-tag rec-p3">P3 · MÉDIA</span>
+      <div>
+        <strong>Aplicar <code>semPlaceholder</code> em todas as chaves de API em <code>src/env.ts</code></strong><br>
+        Criar um validador <code>chaveOpcional</code> que combine a opcionalidade com a rejeição estrita da lista de <code>proibidos</code> (ex: <code>"troque-me"</code>, <code>"exemplo"</code>, <code>"seu-valor-aqui"</code>) para <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>OPENROUTER_API_KEY</code> e credenciais do Pluggy.
+      </div>
+    </li>
+    <li class="rec-item">
+      <span class="rec-tag rec-p4">P4 · BAIXA</span>
+      <div>
+        <strong>Evitar mutação de <code>process.env</code> em rotas HTTP</strong><br>
+        Em <code>src/app/api/ajustes/ia/route.ts</code>, remover as atribuições dinâmicas a <code>process.env</code>. Utilizar os valores persistidos no banco de dados descriptografados sob demanda por requisição, mantendo a imutabilidade do processo.
+      </div>
+    </li>
+  </ul>
+</section>
+
+<!-- ======================= PÁGINA 6: ISSUES 1 E 2 ======================= -->
+<section class="pagina">
+  <h2>5. Issues para o GitHub (Parte 1/2)</h2>
+  <p>Texto completo pronto para copiar e colar diretamente no GitHub Issues:</p>
+
+  <!-- ISSUE 1 -->
+  <div class="bloco-issue">
+    <div class="issue-header">
+      <span>ISSUE 1: Sanitização contra CRLF em salvar-env.ts</span>
+      <span class="issue-delimitador">--- ISSUE 1 ---</span>
+    </div>
+    <div class="issue-body">
+      <strong>Título:</strong> <code>[Segurança] Sanitizar quebras de linha em salvar-env.ts para evitar injeção em .env.local</code><br>
+      <strong>Labels:</strong> <code>security</code>, <code>severity: medium</code>
+      <p><strong>Descrição do problema e explorabilidade:</strong><br>
+      A função <code>atualizarEnvLocal</code> em <code>src/lib/salvar-env.ts</code> recebe valores de variáveis (como <code>apiKey</code> e <code>modelo</code> fornecidos na rota <code>POST /api/ajustes/ia</code>) e os interpola diretamente no formato <code>${chave}=${valor}</code> ao gravar o arquivo <code>.env.local</code> no disco. Não há validação para proibir quebras de linha (<code>\\r</code>, <code>\\n</code>). Um usuário autenticado pode enviar caracteres de nova linha no nome do modelo e injetar variáveis adicionais no arquivo de ambiente, permitindo sobrescrever chaves de segurança como <code>SESSION_SECRET</code> ou <code>DATABASE_URL</code> no próximo boot do servidor.</p>
+
+      <p><strong>Evidência:</strong> <code>src/lib/salvar-env.ts:22-26</code></p>
+      <pre>for (const [chave, valor] of Object.entries(variaveis)) {
+  const regex = new RegExp(`^${chave}=.*$`, 'm');
+  const linha = `${chave}=${valor}`;
+  if (regex.test(conteudo)) {
+    conteudo = conteudo.replace(regex, linha);
+  } else { ... }</pre>
+
+      <p><strong>Impacto:</strong> Injeção de variáveis de ambiente no sistema de arquivos local (CWE-93).</p>
+      <p><strong>Sugestão de correção:</strong> Lançar erro ou rejeitar valores contendo <code>/[\\r\\n]/</code> em <code>atualizarEnvLocal</code> e sanitizar com regex <code>/^[a-zA-Z0-9_\\-\\./]+$/</code> no endpoint da API.</p>
+      <p><strong>Critérios de aceite:</strong></p>
+      <ul>
+        <li>[ ] <code>atualizarEnvLocal</code> recusa ou remove qualquer caractere <code>\\n</code> e <code>\\r</code> em chaves e valores.</li>
+        <li>[ ] <code>POST /api/ajustes/ia</code> valida <code>modelo</code> contra caracteres de controle e formatos inválidos.</li>
+        <li>[ ] Teste unitário em <code>scripts/testes.ts</code> cobrindo tentativa de injeção CRLF em <code>salvar-env</code>.</li>
+      </ul>
+      <div style="text-align:right;font-size:8.5px;color:#94A3B8;">--- FIM ISSUE 1 ---</div>
+    </div>
+  </div>
+
+  <!-- ISSUE 2 -->
+  <div class="bloco-issue">
+    <div class="issue-header">
+      <span>ISSUE 2: Escopo de userId em carregarConfigIaBanco</span>
+      <span class="issue-delimitador">--- ISSUE 2 ---</span>
+    </div>
+    <div class="issue-body">
+      <strong>Título:</strong> <code>[Segurança] Adicionar escopo de user_id na consulta de configurações de IA em carregarConfigIaBanco</code><br>
+      <strong>Labels:</strong> <code>security</code>, <code>severity: low</code>
+      <p><strong>Descrição do problema e explorabilidade:</strong><br>
+      A função <code>carregarConfigIaBanco</code> em <code>src/lib/ia-config-repo.ts</code> busca credenciais e modos de IA diretamente de <code>user_setting</code> com <code>.limit(1)</code> sem filtrar pelo <code>user_id</code> do usuário da sessão. Além disso, as credenciais descriptografadas são guardadas em variáveis de memória em nível de módulo de processo. Isso viola a Regra 1 de arquitetura do Raio-X ("user_id vem sempre da sessão") e pode levar à recuperação de chaves erradas em cenários com mais de uma linha no banco.</p>
+
+      <p><strong>Evidência:</strong> <code>src/lib/ia-config-repo.ts:41-48</code></p>
+      <pre>const [linha] = await db
+  .select({
+    iaProvedor: userSetting.iaProvedor,
+    iaChavesEncrypted: userSetting.iaChavesEncrypted,
+    iaModo: userSetting.iaModo,
+  })
+  .from(userSetting)
+  .limit(1);</pre>
+
+      <p><strong>Impacto:</strong> Descumprimento da regra de isolamento estrito de inquilino/dono no banco de dados.</p>
+      <p><strong>Sugestão de correção:</strong> Receber <code>userId: string</code> em <code>carregarConfigIaBanco</code>, adicionar <code>where(eq(userSetting.userId, userId))</code> e evitar variáveis globais não-chaveadas por usuário.</p>
+      <p><strong>Critérios de aceite:</strong></p>
+      <ul>
+        <li>[ ] <code>carregarConfigIaBanco</code> requer e valida <code>userId</code> no <code>where</code>.</li>
+        <li>[ ] Chamadas em <code>openrouter.ts</code> propagam o <code>userId</code> do chamador.</li>
+        <li>[ ] Nenhuma consulta em <code>userSetting</code> é executada sem filtro de <code>userId</code>.</li>
+      </ul>
+      <div style="text-align:right;font-size:8.5px;color:#94A3B8;">--- FIM ISSUE 2 ---</div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= PÁGINA 7: ISSUES 3 E 4 ======================= -->
+<section class="pagina">
+  <h2>5. Issues para o GitHub (Parte 2/2)</h2>
+
+  <!-- ISSUE 3 -->
+  <div class="bloco-issue">
+    <div class="issue-header">
+      <span>ISSUE 3: Validação semPlaceholder para chaves de terceiros</span>
+      <span class="issue-delimitador">--- ISSUE 3 ---</span>
+    </div>
+    <div class="issue-body">
+      <strong>Título:</strong> <code>[Segurança] Aplicar validação semPlaceholder em chaves de terceiros no src/env.ts</code><br>
+      <strong>Labels:</strong> <code>security</code>, <code>severity: low</code>
+      <p><strong>Descrição do problema e explorabilidade:</strong><br>
+      As novas variáveis de ambiente de IA e Open Finance (<code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>OPENROUTER_API_KEY</code>, <code>PLUGGY_CLIENT_ID</code>, <code>PLUGGY_CLIENT_SECRET</code>) em <code>src/env.ts</code> foram declaradas apenas com <code>z.string().optional()</code>. Diferente de <code>DATABASE_URL</code> e <code>SESSION_SECRET</code>, elas não passam pela checagem <code>semPlaceholder</code>, permitindo que a aplicação inicialize com strings de exemplo (como <code>"troque-me"</code> ou <code>"exemplo"</code>) e tente disparar chamadas com essas credenciais espúrias.</p>
+
+      <p><strong>Evidência:</strong> <code>src/env.ts:60-71</code></p>
+      <pre>ANTHROPIC_API_KEY: z.string().optional(),
+OPENAI_API_KEY: z.string().optional(),
+OPENROUTER_API_KEY: z.string().optional(),
+PLUGGY_CLIENT_ID: z.string().optional(),
+PLUGGY_CLIENT_SECRET: z.string().optional(),</pre>
+
+      <p><strong>Impacto:</strong> Ausência de validação rígida de startup para segredos de terceiros.</p>
+      <p><strong>Sugestão de correção:</strong> Criar um validador <code>chaveOpcional</code> que, se a chave estiver preenchida com tamanho > 0, rejeite os valores contidos na lista de <code>proibidos</code>.</p>
+      <p><strong>Critérios de aceite:</strong></p>
+      <ul>
+        <li>[ ] Se <code>OPENROUTER_API_KEY="seu-valor-aqui"</code>, o app falha no boot com mensagem explicativa.</li>
+        <li>[ ] Se a chave não estiver preenchida (vazia ou ausente), continua passando normalmente.</li>
+      </ul>
+      <div style="text-align:right;font-size:8.5px;color:#94A3B8;">--- FIM ISSUE 3 ---</div>
+    </div>
+  </div>
+
+  <!-- ISSUE 4 -->
+  <div class="bloco-issue">
+    <div class="issue-header">
+      <span>ISSUE 4: Remoção de mutação de process.env em rotas HTTP</span>
+      <span class="issue-delimitador">--- ISSUE 4 ---</span>
+    </div>
+    <div class="issue-body">
+      <strong>Título:</strong> <code>[Segurança] Desacoplar mutação dinâmica de process.env durante requisições na rota de IA</code><br>
+      <strong>Labels:</strong> <code>security</code>, <code>severity: informative</code>
+      <p><strong>Descrição do problema e explorabilidade:</strong><br>
+      A rota <code>src/app/api/ajustes/ia/route.ts</code> modifica diretamente o objeto global <code>process.env</code> (linhas 180-182). Essa mutação em tempo de execução afeta todo o processo Node.js e pode introduzir condições de corrida em ambientes com requisições concorrentes ou execuções em segundo plano (como cron jobs de sincronização).</p>
+
+      <p><strong>Evidência:</strong> <code>src/app/api/ajustes/ia/route.ts:180-182</code></p>
+      <pre>process.env.IA_PROVEDOR = prov;
+process.env[chaveVar] = apiKey;
+process.env.IA_MODEL = modelo;</pre>
+
+      <p><strong>Impacto:</strong> Risco de inconsistência de estado global de ambiente no processo do servidor.</p>
+      <p><strong>Sugestão de correção:</strong> Armazenar e consultar o estado ativo de IA via banco de dados ou contexto de requisição, mantendo <code>process.env</code> imutável.</p>
+      <p><strong>Critérios de aceite:</strong></p>
+      <ul>
+        <li>[ ] Nenhuma rota de API realiza atribuição direta a <code>process.env.*</code>.</li>
+        <li>[ ] O provedor ativo é resolvido por requisição a partir das preferências salvas no banco.</li>
+      </ul>
+      <div style="text-align:right;font-size:8.5px;color:#94A3B8;">--- FIM ISSUE 4 ---</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
+"""
+
+def gerar_html():
+    with open(HTML_PATH, "w", encoding="utf-8") as f:
+        f.write(HTML_CONTENT)
+    print(f"HTML gerado com sucesso em: {HTML_PATH}")
+
+def compilar_pdf_base():
+    chrome_bin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    if not os.path.exists(chrome_bin):
+        print(f"Erro: Chrome não encontrado em {chrome_bin}", file=sys.stderr)
+        sys.exit(1)
+
+    temp_pdf = BASE_DIR / "temp_base.pdf"
+    cmd = [
+        chrome_bin,
+        "--headless",
+        "--disable-gpu",
+        "--run-all-compositor-stages-before-draw",
+        "--no-pdf-header-footer",
+        f"--print-to-pdf={temp_pdf}",
+        str(HTML_PATH)
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Erro ao compilar base PDF: {res.stderr}", file=sys.stderr)
+        sys.exit(res.returncode)
+    return temp_pdf
+
+def aplicar_overlay_cabecalho_rodape(base_pdf_path: Path):
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    reader = PdfReader(str(base_pdf_path))
+    writer = PdfWriter()
+    total_paginas = len(reader.pages)
+    largura_a4, altura_a4 = A4  # 595.27 x 841.89 pontos
+
+    for idx, page in enumerate(reader.pages):
+        num_pag = idx + 1
+        if num_pag == 1:
+            # Capa: sem cabeçalho e sem rodapé
+            writer.add_page(page)
+            continue
+
+        packet = io.BytesIO()
+        can = canvas.Canvas(packet, pagesize=A4)
+        can.setFont("Helvetica", 7.5)
+        can.setFillColorRGB(0.39, 0.45, 0.55)  # #64748B
+
+        # Margens: 18mm = 51 pontos
+        x_esq = 51
+        x_dir = largura_a4 - 51
+        y_topo = altura_a4 - 38
+        y_base = 32
+
+        # Cabeçalho
+        can.drawRightString(x_dir, y_topo, "Relatório de Auditoria de Segurança — Raio-X")
+        can.setStrokeColorRGB(0.88, 0.91, 0.94)  # #E2E8F0
+        can.setLineWidth(0.6)
+        can.line(x_esq, y_topo - 5, x_dir, y_topo - 5)
+
+        # Rodapé
+        can.line(x_esq, y_base + 12, x_dir, y_base + 12)
+        can.drawString(x_esq, y_base, "Confidencial • Raio-X")
+        can.drawRightString(x_dir, y_base, f"Página {num_pag} de {total_paginas}")
+
+        can.save()
+        packet.seek(0)
+
+        overlay_pdf = PdfReader(packet)
+        page.merge_page(overlay_pdf.pages[0])
+        writer.add_page(page)
+
+    with open(PDF_PATH, "wb") as f:
+        writer.write(f)
+
+    if base_pdf_path.exists():
+        base_pdf_path.unlink()
+
+    print(f"PDF final com overlay aplicado com sucesso em: {PDF_PATH}")
+    print(f"Total de páginas: {total_paginas}")
+
+def gerar_previews():
+    PREVIEW_DIR.mkdir(exist_ok=True)
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(str(PDF_PATH))
+    for i, page in enumerate(reader.pages):
+        writer = PdfWriter()
+        writer.add_page(page)
+        temp_single = PREVIEW_DIR / f"page_{i+1}.pdf"
+        with open(temp_single, "wb") as f:
+            writer.write(f)
+        out_png = PREVIEW_DIR / f"page_{i+1}.png"
+        subprocess.run(["sips", "-s", "format", "png", str(temp_single), "--out", str(out_png)], capture_output=True)
+        if temp_single.exists():
+            temp_single.unlink()
+    print(f"Prévias geradas para {len(reader.pages)} páginas em: {PREVIEW_DIR}")
+
+if __name__ == "__main__":
+    gerar_html()
+    base_pdf = compilar_pdf_base()
+    aplicar_overlay_cabecalho_rodape(base_pdf)
+    gerar_previews()

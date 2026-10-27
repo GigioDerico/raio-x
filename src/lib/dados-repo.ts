@@ -17,6 +17,7 @@ import {
   userSetting,
 } from '@/db/schema';
 import { env } from '@/env';
+import { modelosPadrao } from './openrouter';
 import type { LinhaCsv } from './csv';
 import { mesDaTxn, rotuloDaConta } from './txn-repo';
 
@@ -72,7 +73,7 @@ export async function apagarTudo(userId: string): Promise<{ conexoesApagadas: nu
     db.delete(connection).where(eq(connection.userId, userId)),
     db
       .update(userSetting)
-      .set({ rendaDeclarada: null, metaPoupanca: '20', modeloIa: env.OPENROUTER_MODEL, tetoIaUsd: null })
+      .set({ rendaDeclarada: null, metaPoupanca: '20', modeloIa: modelosPadrao().principal, tetoIaUsd: null })
       .where(eq(userSetting.userId, userId)),
   ]);
   return { conexoesApagadas: conexoes.length };

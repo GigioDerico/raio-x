@@ -7,6 +7,8 @@ import { account, institution, statement, userSetting } from '@/db/schema';
 import { configDoUsuario } from './calculos/adaptador';
 import { tiposDeContaQuePodemMudar, type CartaoAjuste, type MudancaConfig, type MudancaConta } from './ajustes';
 
+import { modelosPadrao, provedorAtivo, validarModeloParaProvedor } from './openrouter';
+
 const colunasConfig = {
   renda: userSetting.rendaDeclarada,
   meta: userSetting.metaPoupanca,
@@ -17,9 +19,12 @@ const colunasConfig = {
 type LinhaConfig = { renda: string | null; meta: string; modeloIa: string; tetoIaUsd: string | null };
 
 function configCompleta(linha: LinhaConfig | undefined) {
+  const padrao = modelosPadrao();
+  const prov = provedorAtivo();
+  const modeloValido = validarModeloParaProvedor(linha?.modeloIa, prov, padrao);
   return {
     ...configDoUsuario(linha),
-    modeloIa: linha?.modeloIa ?? env.OPENROUTER_MODEL,
+    modeloIa: modeloValido,
     tetoIaUsd: linha?.tetoIaUsd == null ? null : Number(linha.tetoIaUsd),
   };
 }
@@ -33,8 +38,12 @@ export async function salvarConfig(userId: string, m: MudancaConfig) {
   const campos: Partial<typeof userSetting.$inferInsert> = {};
   if (m.renda !== undefined) campos.rendaDeclarada = m.renda === null ? null : m.renda.toFixed(2);
   if (m.metaPoupanca !== undefined) campos.metaPoupanca = m.metaPoupanca.toFixed(2);
-  // vazio volta ao modelo do .env; a coluna é not null
-  if (m.modeloIa !== undefined) campos.modeloIa = m.modeloIa ?? env.OPENROUTER_MODEL;
+  // vazio volta ao modelo padrão do provedor ativo; a coluna é not null
+  if (m.modeloIa !== undefined) {
+    const padrao = modelosPadrao();
+    const prov = provedorAtivo();
+    campos.modeloIa = m.modeloIa ? validarModeloParaProvedor(m.modeloIa, prov, padrao) : padrao.principal;
+  }
   if (m.tetoIaUsd !== undefined) campos.tetoIaUsd = m.tetoIaUsd === null ? null : m.tetoIaUsd.toFixed(2);
   const [linha] = await db.update(userSetting).set(campos).where(eq(userSetting.userId, userId)).returning(colunasConfig);
   // a linha nasce no primeiro login (obterOuCriarUsuario); faltar é defeito, não erro do usuário

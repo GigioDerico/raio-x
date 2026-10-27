@@ -61,6 +61,9 @@ export const userSetting = pgTable('user_setting', {
   modeloIa: text('modelo_ia').notNull().default('anthropic/claude-sonnet-4.5'),
   tz: text('tz').notNull().default('America/Sao_Paulo'),
   tetoIaUsd: numeric('teto_ia_usd', { precision: 8, scale: 2 }),
+  iaProvedor: text('ia_provedor').notNull().default('openrouter'),
+  iaChavesEncrypted: text('ia_chaves_encrypted'),
+  iaModo: text('ia_modo').notNull().default('auto'),
 });
 
 export const institution = pgTable('institution', {

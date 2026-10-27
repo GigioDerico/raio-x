@@ -2,12 +2,27 @@ import 'server-only';
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { ehChaveEnvValida, ehValorEnvSeguro } from './env-sanitizar';
+
 /**
  * Salva variáveis no .env.local de forma segura (preservando o restante do arquivo e fazendo backup).
  * Se o sistema de arquivos for somente leitura (ex.: Vercel), ignora o erro de escrita.
+ * Rejeita qualquer chave ou valor que viole os limites de formato ou contenha quebras de linha (CRLF).
  */
 export function atualizarEnvLocal(variaveis: Record<string, string>): boolean {
   try {
+    // 1. Validação prévia de todas as entradas para impedir CRLF injection
+    for (const [chave, valor] of Object.entries(variaveis)) {
+      if (!ehChaveEnvValida(chave)) {
+        console.warn(`[env] Chave inválida rejeitada por segurança: "${chave}"`);
+        return false;
+      }
+      if (!ehValorEnvSeguro(valor)) {
+        console.warn(`[env] Tentativa de CRLF injection bloqueada na chave "${chave}"`);
+        return false;
+      }
+    }
+
     const envPath = resolve(process.cwd(), '.env.local');
     let conteudo = '';
     if (existsSync(envPath)) {

@@ -24,3 +24,31 @@ export function segredoConfere(recebido: string | null | undefined, esperado: st
  */
 export const segredoOpcional = (nome: string) =>
   z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32, `${nome} precisa de 32+ caracteres`).optional());
+
+const PROIBIDOS_PLACEHOLDER = ['', 'troque-me', 'changeme', 'exemplo', 'example', 'seu-valor-aqui'];
+
+export const sanitizarEnvVar = (nome: string, v: unknown): unknown => {
+  if (typeof v !== 'string') return v;
+  return v
+    .trim()
+    .replace(new RegExp(`^${nome}\\s*=\\s*`, 'i'), '')
+    .replace(/^psql\\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+};
+
+/**
+ * Para chaves de API opcionais (Anthropic, OpenAI, OpenRouter, Pluggy).
+ * Vazio ou ausente vira `undefined` (não configurado).
+ * Se tiver valor de exemplo/placeholder proibido, derruba o processo no startup.
+ */
+export const chaveOpcionalSemPlaceholder = (nome: string) =>
+  z.preprocess((v) => {
+    const limpo = sanitizarEnvVar(nome, v);
+    if (typeof limpo !== 'string' || limpo.length === 0) return undefined;
+    if (PROIBIDOS_PLACEHOLDER.includes(limpo.toLowerCase())) {
+      throw new Error(`${nome} não pode conter valor de exemplo/placeholder proibido ("${limpo}")`);
+    }
+    return limpo;
+  }, z.string().optional());
+

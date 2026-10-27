@@ -10,6 +10,7 @@ import { gastoDoMes } from '@/lib/ia-uso-repo';
 import { resumoGasto } from '@/lib/ia-gasto';
 import { iaConfigurada, modelosPadrao, provedorAtivo } from '@/lib/openrouter';
 import { detectarClis, obterInfoClaude, obterInfoCodex } from '@/lib/cli-detector';
+import { carregarConfigIaBanco, detectarAmbiente } from '@/lib/ia-config-repo';
 import { exigirUsuario } from '@/lib/sessao-servidor';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export default async function Ajustes() {
   const prov = provedorAtivo();
   const ehAssinatura = prov === 'claude-cli' || prov === 'codex-cli';
 
-  const [config, cartoes, contas, gasto, infoCli] = await Promise.all([
+  const [config, cartoes, contas, gasto, infoCli, configIa] = await Promise.all([
     lerConfig(userId),
     listarCartoes(userId),
     listarContasCorrentes(userId),
@@ -29,8 +30,10 @@ export default async function Ajustes() {
       : prov === 'codex-cli'
         ? obterInfoCodex()
         : Promise.resolve(null),
+    carregarConfigIaBanco(userId),
   ]);
 
+  const ambiente = detectarAmbiente();
   const resumo = resumoGasto(gasto, config.tetoIaUsd ?? env.AI_BUDGET_USD_MONTH);
   const usd = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' });
   const temChave = iaConfigurada();
@@ -133,7 +136,18 @@ export default async function Ajustes() {
           </p>
         </div>
 
-        <ConectarIa provedorAtual={prov} temChave={temChave} clisDisponiveis={clis} />
+        <ConectarIa
+          provedorAtual={prov}
+          temChave={temChave}
+          clisDisponiveis={clis}
+          ambiente={ambiente}
+          modoAtual={configIa.modo}
+          chavesSalvas={{
+            openrouter: Boolean(configIa.chaves.openrouter || process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY),
+            anthropic: Boolean(configIa.chaves.anthropic || process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY),
+            openai: Boolean(configIa.chaves.openai || process.env.OPENAI_API_KEY || env.OPENAI_API_KEY),
+          }}
+        />
 
         <div className="ajustes-campos" style={{ marginTop: '16px' }}>
           <CampoAjuste

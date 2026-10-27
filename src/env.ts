@@ -1,6 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
-import { segredoOpcional } from '@/lib/segredo';
+import { segredoOpcional, chaveOpcionalSemPlaceholder } from '@/lib/segredo';
 
 /**
  * Validação de ambiente. Derruba o processo se faltar chave ou se encontrar
@@ -57,16 +57,16 @@ const schema = z.object({
   ),
 
   // Fatia 4 em diante — opcionais enquanto não existem
-  PLUGGY_CLIENT_ID: z.string().optional(),
-  PLUGGY_CLIENT_SECRET: z.string().optional(),
+  PLUGGY_CLIENT_ID: chaveOpcionalSemPlaceholder('PLUGGY_CLIENT_ID'),
+  PLUGGY_CLIENT_SECRET: chaveOpcionalSemPlaceholder('PLUGGY_CLIENT_SECRET'),
   PLUGGY_WEBHOOK_SECRET: segredoOpcional('PLUGGY_WEBHOOK_SECRET'),
   // IA multi-provedor (claude-cli | codex-cli | openrouter | anthropic | openai)
   IA_PROVEDOR: z.enum(['claude-cli', 'codex-cli', 'openrouter', 'anthropic', 'openai']).default('openrouter'),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: chaveOpcionalSemPlaceholder('ANTHROPIC_API_KEY'),
+  OPENAI_API_KEY: chaveOpcionalSemPlaceholder('OPENAI_API_KEY'),
   IA_MODEL: z.string().optional(),
   IA_MODEL_FALLBACK: z.string().optional(),
-  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_API_KEY: chaveOpcionalSemPlaceholder('OPENROUTER_API_KEY'),
   OPENROUTER_MODEL: z.string().default('anthropic/claude-sonnet-4.5'),
   OPENROUTER_MODEL_FALLBACK: z.string().default('openai/gpt-4.1-mini'),
   AI_BUDGET_USD_MONTH: z.coerce.number().nonnegative().default(10),

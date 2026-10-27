@@ -6,13 +6,21 @@ import { calcularCustoUsd } from './ia-precos';
 import { lerLinhaSse } from './sse';
 import { lerLinhaSseAnthropic } from './sse-anthropic';
 import { executarClaudeCli, executarCodexCli, streamClaudeCli, streamCodexCli } from './cli-runner';
+import { detectarClis } from './cli-detector';
+
+import {
+  carregarConfigIaBanco,
+  detectarAmbiente,
+  obterChaveEmMemoria,
+  obterModoEmMemoria,
+} from './ia-config-repo';
 
 /**
  * Cliente unificado de IA do Raio-X.
  *
  * Suporta:
- * - 'claude-cli': Claude Code CLI (Assinatura Claude Pro/Max)
- * - 'codex-cli': OpenAI Codex CLI (Assinatura ChatGPT Plus / Codex)
+ * - 'claude-cli': Claude Code CLI (Assinatura Claude Pro/Max local)
+ * - 'codex-cli': OpenAI Codex CLI (Assinatura ChatGPT Plus / Codex local)
  * - 'openrouter': OpenRouter API (agregador multi-modelo)
  * - 'anthropic': Anthropic Claude API oficial
  * - 'openai': OpenAI GPT API oficial
@@ -23,16 +31,76 @@ const URL_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
 const URL_OPENAI = 'https://api.openai.com/v1/chat/completions';
 
 export type Uso = { tokensIn: number; tokensOut: number; custoUsd: number | null };
+export type ProvedorIa = 'claude-cli' | 'codex-cli' | 'openrouter' | 'anthropic' | 'openai';
+
+export function obterChave(prov: ProvedorIa): string | undefined {
+  if (prov === 'claude-cli' || prov === 'codex-cli') return undefined;
+  const emMemoria = obterChaveEmMemoria(prov as 'openrouter' | 'anthropic' | 'openai');
+  if (emMemoria) return emMemoria;
+  if (prov === 'anthropic') return process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY;
+  if (prov === 'openai') return process.env.OPENAI_API_KEY || env.OPENAI_API_KEY;
+  return process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY;
+}
+
+export function provedorAtivo(): ProvedorIa {
+  const modo = obterModoEmMemoria();
+  const provRaw = (process.env.IA_PROVEDOR || env.IA_PROVEDOR || 'openrouter').trim().toLowerCase();
+  const prov: ProvedorIa = (['claude-cli', 'codex-cli', 'anthropic', 'openai', 'openrouter'].includes(provRaw)
+    ? provRaw
+    : 'openrouter') as ProvedorIa;
+
+  // 1. Se o usuário forçou Nuvem (Cloud), ignora o CLI local
+  if (modo === 'cloud' && (prov === 'claude-cli' || prov === 'codex-cli')) {
+    if (obterChave('openrouter')) return 'openrouter';
+    if (obterChave('anthropic')) return 'anthropic';
+    if (obterChave('openai')) return 'openai';
+    return 'openrouter';
+  }
+
+  // 2. Se o usuário forçou Local, prioriza os CLIs instalados
+  if (modo === 'local') {
+    const clis = detectarClis();
+    if (prov === 'claude-cli' && clis.temClaude) return 'claude-cli';
+    if (prov === 'codex-cli' && clis.temCodex) return 'codex-cli';
+    if (clis.temClaude) return 'claude-cli';
+    if (clis.temCodex) return 'codex-cli';
+  }
+
+  // 3. Modo Auto (inteligente por padrão):
+  // Se estiver configurado para CLI mas o ambiente for online (Vercel, Docker, etc.) ou o CLI não existir na máquina,
+  // faz fallback automático para o provedor de nuvem com chave disponível
+  if (prov === 'claude-cli' || prov === 'codex-cli') {
+    const ambiente = detectarAmbiente();
+    const clis = detectarClis();
+    const cliDisponivel = prov === 'claude-cli' ? clis.temClaude : clis.temCodex;
+
+    if (ambiente === 'online' || !cliDisponivel) {
+      if (obterChave('openrouter')) return 'openrouter';
+      if (obterChave('anthropic')) return 'anthropic';
+      if (obterChave('openai')) return 'openai';
+      return 'openrouter';
+    }
+  }
+
+  return prov;
+}
+
+export function iaConfigurada(): boolean {
+  const prov = provedorAtivo();
+  if (prov === 'claude-cli') return detectarClis().temClaude;
+  if (prov === 'codex-cli') return detectarClis().temCodex;
+  return Boolean(obterChave(prov));
+}
 
 export class SemChaveIA extends Error {
   constructor(mensagem?: string) {
-    const prov = env.IA_PROVEDOR;
-    let chave = 'OPENROUTER_API_KEY';
+    const prov = provedorAtivo();
+    let chave = 'Chave de IA não configurada';
     if (prov === 'claude-cli') chave = 'Claude Code CLI não autenticado no terminal (rode `claude login`)';
     else if (prov === 'codex-cli') chave = 'Codex CLI não autenticado no terminal (rode `codex login`)';
-    else if (prov === 'anthropic') chave = 'ANTHROPIC_API_KEY não configurada';
-    else if (prov === 'openai') chave = 'OPENAI_API_KEY não configurada';
-    else chave = 'OPENROUTER_API_KEY não configurada';
+    else if (prov === 'anthropic') chave = 'ANTHROPIC_API_KEY não configurada no servidor';
+    else if (prov === 'openai') chave = 'OPENAI_API_KEY não configurada no servidor';
+    else chave = 'OPENROUTER_API_KEY não configurada no servidor';
     super(mensagem ?? chave);
     this.name = 'SemChaveIA';
   }
@@ -51,20 +119,8 @@ export class RespostaNaoJson extends Error {
 
 export type EventoStream = { tipo: 'texto'; t: string } | { tipo: 'fim'; modelo: string; uso: Uso };
 
-export function provedorAtivo(): 'claude-cli' | 'codex-cli' | 'openrouter' | 'anthropic' | 'openai' {
-  return env.IA_PROVEDOR;
-}
-
-export function iaConfigurada(): boolean {
-  const prov = env.IA_PROVEDOR;
-  if (prov === 'claude-cli' || prov === 'codex-cli') return true;
-  if (prov === 'anthropic') return Boolean(env.ANTHROPIC_API_KEY);
-  if (prov === 'openai') return Boolean(env.OPENAI_API_KEY);
-  return Boolean(env.OPENROUTER_API_KEY);
-}
-
 export function modelosPadrao(): { principal: string; fallback: string } {
-  const prov = env.IA_PROVEDOR;
+  const prov = provedorAtivo();
   if (prov === 'claude-cli') {
     return { principal: 'claude-code-cli', fallback: 'claude-code-cli' };
   }
@@ -73,20 +129,55 @@ export function modelosPadrao(): { principal: string; fallback: string } {
   }
   if (prov === 'anthropic') {
     return {
-      principal: env.IA_MODEL || 'claude-3-5-sonnet-20241022',
-      fallback: env.IA_MODEL_FALLBACK || 'claude-3-5-haiku-20241022',
+      principal: process.env.IA_MODEL || env.IA_MODEL || 'claude-3-5-sonnet-20241022',
+      fallback: process.env.IA_MODEL_FALLBACK || env.IA_MODEL_FALLBACK || 'claude-3-5-haiku-20241022',
     };
   }
   if (prov === 'openai') {
     return {
-      principal: env.IA_MODEL || 'gpt-4o',
-      fallback: env.IA_MODEL_FALLBACK || 'gpt-4o-mini',
+      principal: process.env.IA_MODEL || env.IA_MODEL || 'gpt-4o',
+      fallback: process.env.IA_MODEL_FALLBACK || env.IA_MODEL_FALLBACK || 'gpt-4o-mini',
     };
   }
   return {
-    principal: env.IA_MODEL || env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.5',
-    fallback: env.IA_MODEL_FALLBACK || env.OPENROUTER_MODEL_FALLBACK || 'openai/gpt-4.1-mini',
+    principal: process.env.IA_MODEL || env.IA_MODEL || process.env.OPENROUTER_MODEL || env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.5',
+    fallback: process.env.IA_MODEL_FALLBACK || env.IA_MODEL_FALLBACK || process.env.OPENROUTER_MODEL_FALLBACK || env.OPENROUTER_MODEL_FALLBACK || 'openai/gpt-4.1-mini',
   };
+}
+
+export function validarModeloParaProvedor(
+  modelo: string | undefined | null,
+  prov: ProvedorIa,
+  padrao: { principal: string; fallback: string },
+): string {
+  if (!modelo || typeof modelo !== 'string' || !modelo.trim()) {
+    return padrao.principal;
+  }
+  const m = modelo.trim();
+
+  if (prov === 'claude-cli') return 'claude-code-cli';
+  if (prov === 'codex-cli') return 'codex-cli';
+
+  // Se o modelo for slug de CLI mas o provedor ativo é cloud API:
+  if (m === 'claude-code-cli' || m === 'codex-cli') {
+    return padrao.principal;
+  }
+
+  if (prov === 'anthropic') {
+    if (m.startsWith('claude-') && !m.includes('/')) return m;
+    return padrao.principal;
+  }
+
+  if (prov === 'openai') {
+    if ((m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-') || m.startsWith('chatgpt-')) && !m.includes('/')) return m;
+    return padrao.principal;
+  }
+
+  if (prov === 'openrouter') {
+    return m;
+  }
+
+  return padrao.principal;
 }
 
 type RespostaChat = {
@@ -101,12 +192,23 @@ type RespostaAnthropic = {
   error?: { message?: string };
 };
 
+async function garantirChave(prov: 'openrouter' | 'anthropic' | 'openai'): Promise<string> {
+  let chave = obterChave(prov);
+  if (!chave) {
+    await carregarConfigIaBanco();
+    chave = obterChave(prov);
+  }
+  if (!chave) throw new SemChaveIA();
+  return chave;
+}
+
 async function chamarOpenRouter(modelo: string, prompt: string, sinal?: AbortSignal) {
+  const chave = await garantirChave('openrouter');
   const r = await fetch(URL_OPENROUTER, {
     method: 'POST',
     signal: sinal,
     headers: {
-      authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+      authorization: `Bearer ${chave}`,
       'content-type': 'application/json',
       'x-title': 'Raio-X',
     },
@@ -133,11 +235,12 @@ async function chamarOpenRouter(modelo: string, prompt: string, sinal?: AbortSig
 }
 
 async function chamarAnthropic(modelo: string, prompt: string, sinal?: AbortSignal) {
+  const chave = await garantirChave('anthropic');
   const r = await fetch(URL_ANTHROPIC, {
     method: 'POST',
     signal: sinal,
     headers: {
-      'x-api-key': env.ANTHROPIC_API_KEY ?? '',
+      'x-api-key': chave,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
@@ -165,11 +268,12 @@ async function chamarAnthropic(modelo: string, prompt: string, sinal?: AbortSign
 }
 
 async function chamarOpenAI(modelo: string, prompt: string, sinal?: AbortSignal) {
+  const chave = await garantirChave('openai');
   const r = await fetch(URL_OPENAI, {
     method: 'POST',
     signal: sinal,
     headers: {
-      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      authorization: `Bearer ${chave}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({
@@ -196,7 +300,7 @@ async function chamarOpenAI(modelo: string, prompt: string, sinal?: AbortSignal)
 }
 
 async function chamarAtivo(modelo: string, prompt: string, sinal?: AbortSignal) {
-  const prov = env.IA_PROVEDOR;
+  const prov = provedorAtivo();
   if (prov === 'claude-cli') return executarClaudeCli(prompt, sinal);
   if (prov === 'codex-cli') return executarCodexCli(prompt, sinal);
   if (prov === 'anthropic') return chamarAnthropic(modelo, prompt, sinal);
@@ -213,10 +317,16 @@ export async function pedirJson<T>(
   // a reserva não é lida aqui: exigi-la no tipo é o que impede chamada sem trava
   opcoes: { reserva: ReservaIA; modelo?: string; sinal?: AbortSignal },
 ): Promise<{ dados: T; modelo: string; uso: Uso }> {
+  if (!iaConfigurada()) {
+    await carregarConfigIaBanco();
+  }
   if (!iaConfigurada()) throw new SemChaveIA();
 
+  const prov = provedorAtivo();
   const padrao = modelosPadrao();
-  const tentativas = [opcoes.modelo ?? padrao.principal, padrao.fallback].filter(
+  const modeloPrincipal = validarModeloParaProvedor(opcoes.modelo, prov, padrao);
+  const fallback = validarModeloParaProvedor(padrao.fallback, prov, padrao);
+  const tentativas = [modeloPrincipal, fallback].filter(
     (m, i, a): m is string => Boolean(m) && a.indexOf(m) === i,
   );
 
@@ -270,11 +380,12 @@ async function* linhasDe(corpo: ReadableStream<Uint8Array>) {
 }
 
 async function abrirStreamOpenRouter(modelo: string, mensagens: Mensagem[], sinal?: AbortSignal) {
+  const chave = await garantirChave('openrouter');
   const r = await fetch(URL_OPENROUTER, {
     method: 'POST',
     signal: sinal,
     headers: {
-      authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+      authorization: `Bearer ${chave}`,
       'content-type': 'application/json',
       'x-title': 'Raio-X',
     },
@@ -294,11 +405,12 @@ async function abrirStreamOpenRouter(modelo: string, mensagens: Mensagem[], sina
 }
 
 async function abrirStreamOpenAI(modelo: string, mensagens: Mensagem[], sinal?: AbortSignal) {
+  const chave = await garantirChave('openai');
   const r = await fetch(URL_OPENAI, {
     method: 'POST',
     signal: sinal,
     headers: {
-      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      authorization: `Bearer ${chave}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({
@@ -317,11 +429,12 @@ async function abrirStreamOpenAI(modelo: string, mensagens: Mensagem[], sinal?: 
 }
 
 async function abrirStreamAnthropic(modelo: string, mensagens: Mensagem[], sinal?: AbortSignal) {
+  const chave = await garantirChave('anthropic');
   const r = await fetch(URL_ANTHROPIC, {
     method: 'POST',
     signal: sinal,
     headers: {
-      'x-api-key': env.ANTHROPIC_API_KEY ?? '',
+      'x-api-key': chave,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
@@ -348,15 +461,11 @@ export async function* pedirTextoEmStream(
   entrada: string | Mensagem[],
   opcoes: { reserva: ReservaIA; modelo?: string; sinal?: AbortSignal },
 ): AsyncGenerator<EventoStream> {
+  if (!iaConfigurada()) {
+    await carregarConfigIaBanco();
+  }
   if (!iaConfigurada()) throw new SemChaveIA();
-  const mensagens: Mensagem[] = typeof entrada === 'string' ? [{ role: 'user', content: entrada }] : entrada;
-
-  const padrao = modelosPadrao();
-  const tentativas = [opcoes.modelo ?? padrao.principal, padrao.fallback].filter(
-    (m, i, a): m is string => Boolean(m) && a.indexOf(m) === i,
-  );
-
-  const prov = env.IA_PROVEDOR;
+  const prov = provedorAtivo();
   if (prov === 'claude-cli') {
     yield* streamClaudeCli(entrada, opcoes.sinal);
     return;
@@ -365,6 +474,15 @@ export async function* pedirTextoEmStream(
     yield* streamCodexCli(entrada, opcoes.sinal);
     return;
   }
+
+  const mensagens: Mensagem[] = typeof entrada === 'string' ? [{ role: 'user', content: entrada }] : entrada;
+
+  const padrao = modelosPadrao();
+  const modeloPrincipal = validarModeloParaProvedor(opcoes.modelo, prov, padrao);
+  const fallback = validarModeloParaProvedor(padrao.fallback, prov, padrao);
+  const tentativas = [modeloPrincipal, fallback].filter(
+    (m, i, a): m is string => Boolean(m) && a.indexOf(m) === i,
+  );
 
   let ultimoErro: unknown;
 

@@ -65,7 +65,8 @@ import { bancoDoCodigo, casarConta, contaDoPluggy, destinoNoSync, ehPessoaFisica
 import { janelaAtualizar, janelaInicial, precisaSincronizar } from '../src/lib/pluggy/janela';
 import { avisoDasConexoes, conexoesOrfas, estadoDaConexao, haQuanto } from '../src/lib/pluggy/estado';
 import { lerEventoPluggy } from '../src/lib/pluggy/webhook';
-import { segredoConfere, segredoOpcional } from '../src/lib/segredo';
+import { segredoConfere, segredoOpcional, chaveOpcionalSemPlaceholder } from '../src/lib/segredo';
+import { ehChaveEnvValida, ehValorEnvSeguro, ehModeloIaValido } from '../src/lib/env-sanitizar';
 import { resumoDoErro } from '../src/lib/log';
 import { camposDaAcao, planejarSync, type Acao, type Existente } from '../src/lib/pluggy/planejar';
 import { criarClientePluggy, SemChavePluggy } from '../src/lib/pluggy/http';
@@ -1861,6 +1862,30 @@ async function main() {
 
   const clis = detectarClis();
   checar('cli detector: flags booleanas válidas', typeof clis.temClaude === 'boolean' && typeof clis.temCodex === 'boolean');
+
+  // ── Auditoria de segurança pós-auditoria: CRLF injection e chaves ─────────
+  checar('env seguro: chave válida', ehChaveEnvValida('IA_MODEL') && ehChaveEnvValida('OPENROUTER_API_KEY'));
+  checar('env seguro: chave com minúsculas ou traço é rejeitada', !ehChaveEnvValida('ia_model') && !ehChaveEnvValida('IA-MODEL'));
+  checar('env seguro: chave com quebra de linha é rejeitada', !ehChaveEnvValida('IA_MODEL\nEVIL=1'));
+  checar('env seguro: valor seguro aceita string comum', ehValorEnvSeguro('anthropic/claude-3.5-sonnet') && ehValorEnvSeguro('sk-123456'));
+  checar('env seguro: valor com CRLF é bloqueado', !ehValorEnvSeguro('modelo\nSESSION_SECRET=hacked') && !ehValorEnvSeguro('chave\r\nDATABASE_URL=x'));
+  checar('env seguro: valor com byte nulo é bloqueado', !ehValorEnvSeguro('chave\0teste'));
+
+  checar('modelo ia: aceita modelos padrão e formatos válidos', ehModeloIaValido('anthropic/claude-sonnet-4.5') && ehModeloIaValido('gpt-4o-mini'));
+  checar('modelo ia: rejeita injeção e quebras de linha', !ehModeloIaValido('gpt-4o\nEVIL=1') && !ehModeloIaValido('gpt-4o\r'));
+  checar('modelo ia: rejeita caracteres de controle ou comandos', !ehModeloIaValido('modelo; rm -rf /') && !ehModeloIaValido('<script>'));
+  checar('modelo ia: vazio ou só espaços é rejeitado', !ehModeloIaValido('') && !ehModeloIaValido('   '));
+
+  const schemaChave = chaveOpcionalSemPlaceholder('TEST_KEY');
+  checar('chave opcional: ausente ou vazia vira undefined', schemaChave.parse(undefined) === undefined && schemaChave.parse('') === undefined && schemaChave.parse('   ') === undefined);
+  checar('chave opcional: valor real passa limpo', schemaChave.parse('  sk-real-key-123  ') === 'sk-real-key-123');
+  let placeholderBarrou = false;
+  try {
+    schemaChave.parse('seu-valor-aqui');
+  } catch {
+    placeholderBarrou = true;
+  }
+  checar('chave opcional: placeholder proibido dispara erro no startup', placeholderBarrou);
 
   process.stdout.write(falhas === 0 ? '\nTodos os testes passaram.\n' : `\n${falhas} falha(s).\n`);
   process.exitCode = falhas === 0 ? 0 : 1;

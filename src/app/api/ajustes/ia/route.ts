@@ -1,9 +1,12 @@
 import 'server-only';
 import type { NextRequest } from 'next/server';
+import { env } from '@/env';
 import { salvarConfig } from '@/lib/ajustes-repo';
 import { executarClaudeCli, executarCodexCli } from '@/lib/cli-runner';
+import { salvarConfigIaBanco, type ModoIa } from '@/lib/ia-config-repo';
 import { ErroDeUso, comUsuario, corpoJson } from '@/lib/rota';
 import { atualizarEnvLocal } from '@/lib/salvar-env';
+import { ehModeloIaValido, ehValorEnvSeguro } from '@/lib/env-sanitizar';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +14,7 @@ type CorpoRequisicao = {
   provedor?: unknown;
   apiKey?: unknown;
   modelo?: unknown;
+  modo?: unknown;
 };
 
 const MODELOS_PADRAO: Record<string, string> = {
@@ -97,8 +101,16 @@ export async function POST(req: NextRequest) {
       throw new ErroDeUso('provedor_invalido', 'Escolha um provedor válido');
     }
 
+    const modo = (typeof corpo?.modo === 'string' && ['auto', 'local', 'cloud'].includes(corpo.modo)
+      ? corpo.modo
+      : undefined) as ModoIa | undefined;
+
     const padrao = MODELOS_PADRAO[prov]!;
-    const modelo = typeof corpo?.modelo === 'string' && corpo.modelo.trim() ? corpo.modelo.trim() : padrao;
+    const modeloBruto = typeof corpo?.modelo === 'string' && corpo.modelo.trim() ? corpo.modelo.trim() : padrao;
+    if (!ehModeloIaValido(modeloBruto)) {
+      throw new ErroDeUso('modelo_invalido', 'Nome de modelo inválido ou contém caracteres não permitidos');
+    }
+    const modelo = modeloBruto;
 
     let ms = 0;
 
@@ -120,7 +132,8 @@ export async function POST(req: NextRequest) {
       });
 
       await salvarConfig(userId, { modeloIa: modelo });
-      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo };
+      await salvarConfigIaBanco({ userId, provedor: prov, modelo, modo });
+      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo, salvoNoBanco: true };
     }
 
     if (prov === 'codex-cli') {
@@ -141,12 +154,20 @@ export async function POST(req: NextRequest) {
       });
 
       await salvarConfig(userId, { modeloIa: modelo });
-      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo };
+      await salvarConfigIaBanco({ userId, provedor: prov, modelo, modo });
+      return { ok: true, provedor: prov, modelo, latenciaMs: ms, salvoNoArquivo, salvoNoBanco: true };
     }
 
-    const apiKey = typeof corpo?.apiKey === 'string' ? corpo.apiKey.trim() : '';
+    const chaveVar = prov === 'anthropic' ? 'ANTHROPIC_API_KEY' : prov === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY';
+    let apiKey = typeof corpo?.apiKey === 'string' ? corpo.apiKey.trim() : '';
+    if (!apiKey) {
+      apiKey = (process.env[chaveVar] || (env as Record<string, unknown>)[chaveVar] || '') as string;
+    }
     if (!apiKey) {
       throw new ErroDeUso('chave_obrigatoria', 'Cole a chave de API para conectar');
+    }
+    if (!ehValorEnvSeguro(apiKey) || apiKey.length > 512) {
+      throw new ErroDeUso('chave_invalida', 'Chave de API contém caracteres inválidos ou é excessivamente longa');
     }
 
     try {
@@ -164,8 +185,6 @@ export async function POST(req: NextRequest) {
       throw new ErroDeUso('falha_autenticacao', e instanceof Error ? e.message : 'Falha ao testar chave');
     }
 
-    const chaveVar = prov === 'anthropic' ? 'ANTHROPIC_API_KEY' : prov === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY';
-
     process.env.IA_PROVEDOR = prov;
     process.env[chaveVar] = apiKey;
     process.env.IA_MODEL = modelo;
@@ -177,6 +196,7 @@ export async function POST(req: NextRequest) {
     });
 
     await salvarConfig(userId, { modeloIa: modelo });
+    await salvarConfigIaBanco({ userId, provedor: prov, chave: apiKey, modelo, modo });
 
     return {
       ok: true,
@@ -184,6 +204,7 @@ export async function POST(req: NextRequest) {
       modelo,
       latenciaMs: ms,
       salvoNoArquivo,
+      salvoNoBanco: true,
     };
   });
 }

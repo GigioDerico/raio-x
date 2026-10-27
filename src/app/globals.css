@@ -1033,6 +1033,68 @@ section.block { margin-top: 30px; }
 .conectar-ia-input-grupo { position: relative; display: flex; align-items: center; }
 .conectar-ia-input-grupo input { width: 100%; padding-right: 70px; }
 .conectar-ia-btn-visivel { position: absolute; right: 8px; font-size: 12px; padding: 4px 6px; }
+.conectar-ia-ambiente-card {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.conectar-ia-ambiente-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.conectar-ia-ambiente-ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.conectar-ia-ambiente-ponto.local {
+  background: var(--good, #10b981);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+.conectar-ia-ambiente-ponto.nuvem {
+  background: var(--accent, #3b82f6);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+.conectar-ia-seletor-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.conectar-ia-seletor-botoes {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.conectar-ia-seletor-btn {
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--hair);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.conectar-ia-seletor-btn:hover:not([disabled]) {
+  border-color: var(--line);
+  background: var(--plane);
+}
+.conectar-ia-seletor-btn.ativo {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
 .conectar-ia-acoes { margin-top: 4px; }
 .ia-teste { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .ia-teste-ok { font-size: 13px; color: var(--good); margin: 0; }

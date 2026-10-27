@@ -11,12 +11,15 @@ next-env.d.ts
 .env.local
 .env.local.bak
 .env.*.local
+.venv/
+venv/
 
 # dados reais, em qualquer formato
 *.dump
 *.sql.gz
 faturas/
 *.pdf
+!docs/security-audit/*.pdf
 
 .DS_Store
 
