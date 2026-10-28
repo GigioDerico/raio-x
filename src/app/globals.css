@@ -2438,12 +2438,240 @@ a.voltar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
   text-decoration: none;
   font-size: 13px;
 }
-.landing-rodape-links a:hover {
+/* ==========================================================================
+   SEÇÃO SEGURANÇA & PRIVACIDADE (LANDING & APP)
+   ========================================================================== */
+.landing-seguranca-destaque-local {
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 100%);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  padding: 30px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-seguranca-maxima {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.destaque-local-corpo {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.destaque-local-texto {
+  flex: 1 1 500px;
+}
+
+.destaque-local-texto h3 {
+  font-size: clamp(18px, 2.2vw, 22px);
   color: var(--ink);
+  margin: 0 0 10px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.destaque-local-texto p {
+  font-size: 14.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+
+.destaque-local-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.destaque-local-lista li {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+  position: relative;
+  padding-left: 20px;
+}
+
+.destaque-local-lista li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.destaque-local-lista strong {
+  color: var(--ink);
+}
+
+.destaque-local-cmd {
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 280px;
+  box-sizing: border-box;
+}
+
+.cmd-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.destaque-local-cmd code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cmd-tag {
+  font-size: 11.5px;
+  color: var(--good);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.landing-seguranca-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 20px;
+}
+
+.card-seguranca {
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.card-seguranca:hover {
+  transform: translateY(-2px);
+  border-color: var(--line);
+}
+
+.seguranca-icone {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.card-seguranca h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.card-seguranca p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+
+.seguranca-tag-box {
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.seguranca-tag-box span {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.seguranca-tag-box strong {
+  color: var(--ink);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* Aviso em Conexões (In-App) */
+.conexoes-seguranca-aviso {
+  margin-bottom: 20px;
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+}
+
+.conexoes-seguranca-topo {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.seguranca-icone-mini {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.conexoes-seguranca-rodape-local {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--hair);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.conexoes-seguranca-rodape-local code {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--accent);
 }
 
 @media (max-width: 768px) {
   .landing-nav-links { display: none; }
   .landing-hero { padding-top: 40px; }
   .landing-mockup-wrapper { perspective: none; }
+  .landing-seguranca-destaque-local { padding: 20px; }
+  .destaque-local-cmd { flex: 1 1 100%; }
 }

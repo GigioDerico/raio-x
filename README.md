@@ -207,10 +207,30 @@ O app abrirá em tela cheia, sem barra de endereços, com o mesmo visual e fluid
 
 ## 🔒 Compromisso de Segurança e Privacidade
 
-- **Minimização de Dados:** O app não armazena saldos de conta corrente após o cálculo, nem números de agência ou CPF.
-- **Sanitização de IA:** Lançamentos passam por uma camada de limpeza que ofusca identificadores de transações sensíveis antes de qualquer processamento por LLMs.
-- **Isolamento de Processos CLI:** Quando executado via terminal local, o Claude Code roda com o parâmetro `--tools ""` (modo somente consulta, sem permissão para executar comandos shell ou editar arquivos no seu computador).
-- **Sem Rastreamento de Terceiros:** Não há Google Analytics, Mixpanel ou scripts de telemetria externa instalados.
+> **💡 Dica de Segurança Máxima: Por que a opção mais segura é rodar localmente (`localhost`)?**  
+> Embora o Raio-X possa ser hospedado na Vercel ou VPS, **a execução local (`npm run dev`) é o padrão ouro de soberania e privacidade**.  
+> Rodando na sua própria máquina:
+> 1. Seus dados e chaves nunca passam por servidores ou ambientes serverless compartilhados na nuvem.
+> 2. Você pode usar a **IA local via terminal** (`Claude Code CLI` ou `Codex CLI`), processando faturas e diagnósticos **sem enviar nenhum dado para APIs externas**.
+> 3. Seu banco PostgreSQL e suas faturas ficam estritamente confinados ao seu hardware e ambiente privado.
+
+### 1. Como credenciais e dados de cartão são guardados
+- **Zero Senhas ou Números Completos:** O Raio-X **nunca** tem acesso, nunca solicita e nunca armazena senhas bancárias, chaves de acesso, agência/conta ou números de cartão (código CVV e número PAN de 16 dígitos).
+- **Apenas Identificação Visual:** No banco de dados, fica armazenado unicamente os **últimos 4 dígitos** (`last4`) e o apelido que você definir (ex: "Nubank Roxo", "Itaú Azul") para permitir a distinção das faturas na interface.
+- **Open Finance Brasileiro Oficial:** A sincronização bancária utiliza a API da **Pluggy** (instituição autorizada pelo Banco Central). O consentimento é concedido diretamente no ambiente seguro do seu banco, em modo **100% somente leitura** (impossível realizar transferências, movimentações ou Pix).
+- **Faturas em PDF 100% Offline:** Se importar faturas antigas em PDF, a leitura é feita localmente no seu próprio navegador via `pdf.js` — **o arquivo PDF nunca é transmitido para servidores de terceiros**.
+
+### 2. O que vai (e o que NÃO vai) para os modelos de IA
+Nenhum extrato cru ou objeto de banco de dados é enviado para inteligências artificiais. Antes de qualquer prompt:
+- **Sanitização de Documentos:** CPFs, CNPJs, códigos de autorização bancária e linhas digitáveis são removidos automaticamente via regex antes do envio.
+- **Anonimização de Pessoas Físicas (Pix/TED):** Transferências entre pessoas físicas têm os nomes reais suprimidos, sendo substituídos por identificadores neutros (ex: *"Pix pessoa A"*, *"Pix pessoa B"*), resguardando quem enviou ou recebeu o dinheiro.
+- **Carga Mínima de Prompt:** A IA recebe estritamente: `data`, `valor`, `categoria` e o `nome normalizado do estabelecimento` para categorização e diagnósticos de gastos.
+- **Isolamento de Processos CLI:** Quando executado via terminal local, o Claude Code roda com o parâmetro restritivo `--tools ""` (modo somente consulta, sem permissão para executar comandos shell ou alterar arquivos no seu computador).
+
+### 3. Minimização e Soberania dos Dados
+- **Sem Rastreamento de Terceiros:** Não há Google Analytics, Mixpanel, cookies de publicidade ou scripts de telemetria externa instalados.
+- **Exportação e Destruição com 1 Clique:** Em `/ajustes`, você pode exportar todo o histórico em CSV ou destruir permanentemente todos os registros do banco de dados a qualquer momento.
+- **Código Aberto e Auditável:** Todo o esquema do banco (`src/db/schema.ts`), as regras de sanitização (`src/lib/ia.ts`) e o fluxo de autenticação estão abertos para auditoria no repositório.
 
 ---
 

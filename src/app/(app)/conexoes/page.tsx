@@ -22,6 +22,21 @@ export default async function Conexoes() {
         <p className="suave">Os bancos que mandam lançamentos para cá pelo Open Finance. O app só lê — nunca paga nem transfere.</p>
       </header>
 
+      <section className="cartao conexoes-seguranca-aviso" aria-label="Segurança e Privacidade das Conexões">
+        <div className="conexoes-seguranca-topo">
+          <span className="seguranca-icone-mini" aria-hidden="true">🛡️</span>
+          <div>
+            <strong>Privacidade e Proteção de Dados de Cartão</strong>
+            <p className="suave" style={{ margin: '3px 0 0', fontSize: '13px' }}>
+              O Raio-X conecta via Open Finance oficial (100% somente leitura). O app <strong>nunca</strong> vê nem armazena senhas ou números de cartão (guarda apenas os últimos 4 dígitos para identificação). Nenhum dado bruto ou CPF é enviado para IAs.
+            </p>
+          </div>
+        </div>
+        <div className="conexoes-seguranca-rodape-local">
+          💡 <strong>Dica de privacidade máxima:</strong> A opção mais segura é executar o Raio-X localmente no seu computador (<code>npm run dev</code>), onde você pode usar IAs locais via CLI sem tráfego de dados na nuvem.
+        </div>
+      </section>
+
       {conexoes.length === 0 ? (
         <>
           <section className="cartao vazio">

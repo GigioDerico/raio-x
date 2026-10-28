@@ -25,6 +25,7 @@ export default function LandingPage() {
             <a href="#diferencial">O que muda</a>
             <a href="#recursos">Recursos</a>
             <a href="#open-finance">Open Finance</a>
+            <a href="#seguranca">Segurança & IA</a>
             <a href="#comparativo">Comparativo</a>
           </nav>
           <a
@@ -450,6 +451,88 @@ export default function LandingPage() {
                 <strong>Chaves 100% Suas</strong>
                 <p>As chaves de API ficam salvas exclusivamente na sua Vercel ou servidor local.</p>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Seção Segurança, Privacidade & IA */}
+      <section id="seguranca" className="landing-secao">
+        <div className="landing-secao-cabecalho">
+          <span className="landing-secao-tag">Segurança & Privacidade Absoluta</span>
+          <h2>Como seus cartões, dados e IA são protegidos</h2>
+          <p className="landing-secao-desc">
+            Transparência radical: entenda o que é armazenado, como funciona a sincronização e o que a inteligência artificial realmente enxerga.
+          </p>
+        </div>
+
+        {/* Destaque Maior Segurança: Rodar Local */}
+        <div className="landing-seguranca-destaque-local">
+          <div className="badge-seguranca-maxima">
+            <span className="pulse-green" /> Opção Mais Segura de Todas
+          </div>
+          <div className="destaque-local-corpo">
+            <div className="destaque-local-texto">
+              <h3>🛡️ Rodar Localmente no seu Próprio Computador (Localhost)</h3>
+              <p>
+                Se você busca o <strong>nível máximo de privacidade e soberania</strong>, recomendamos executar o Raio-X diretamente na sua própria máquina (<code>localhost:3000</code>).
+              </p>
+              <ul className="destaque-local-lista">
+                <li>
+                  <strong>Zero tráfego em servidores de hospedagem:</strong> Seus dados não passam por nenhuma nuvem serverless compartilhada ou intermediários de deploy.
+                </li>
+                <li>
+                  <strong>IA 100% no seu terminal (Sem sair da máquina):</strong> Conecte-se aos CLIs locais do Claude Code ou Codex já autenticados no seu Mac ou Linux. O modelo categoriza e analisa seus gastos sem enviar requisições para provedores externos de API.
+                </li>
+                <li>
+                  <strong>Chaves e banco sob seu controle exclusivo:</strong> Suas variáveis de ambiente e o banco PostgreSQL ficam estritamente isolados no seu ambiente.
+                </li>
+              </ul>
+            </div>
+            <div className="destaque-local-cmd">
+              <span className="cmd-label">Execução Local em 2 passos:</span>
+              <code>git clone ... && npm install</code>
+              <code>npm run dev</code>
+              <span className="cmd-tag">✓ Roda no seu Mac / Linux / PC</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Grid dos 3 Pilares: Cartões, Open Finance e IA */}
+        <div className="landing-seguranca-grid">
+          <div className="card-seguranca">
+            <div className="seguranca-icone">💳</div>
+            <h3>Dados de Cartão e Credenciais</h3>
+            <p>
+              O Raio-X <strong>nunca tem acesso</strong> e nunca solicita suas senhas, chaves de acesso bancário, agência/conta ou números de cartão (PAN completo e código de segurança CVV).
+            </p>
+            <div className="seguranca-tag-box">
+              <span>Guardado no banco:</span>
+              <strong>Apenas os últimos 4 dígitos (last4) e o apelido que você escolher para identificar o cartão visualmente no painel.</strong>
+            </div>
+          </div>
+
+          <div className="card-seguranca">
+            <div className="seguranca-icone">🏦</div>
+            <h3>Sincronização & Open Finance Oficial</h3>
+            <p>
+              A sincronização é 100% feita pelo <strong>Open Finance oficial via Pluggy</strong> (autorizada pelo Banco Central), em modo <strong>estritamente somente leitura</strong> — impossível movimentar dinheiro ou fazer Pix.
+            </p>
+            <div className="seguranca-tag-box">
+              <span>Faturas em PDF:</span>
+              <strong>A leitura é feita 100% no seu navegador via PDF.js. O arquivo PDF nunca é transmitido para servidores externos.</strong>
+            </div>
+          </div>
+
+          <div className="card-seguranca">
+            <div className="seguranca-icone">🧠</div>
+            <h3>O que vai para o Modelo de IA</h3>
+            <p>
+              Nenhum extrato cru ou dado de titular vai para os prompts. Todo lançamento passa por uma <strong>camada rigorosa de sanitização</strong> antes de qualquer processamento por LLMs:
+            </p>
+            <div className="seguranca-tag-box">
+              <span>Sanitização ativa:</span>
+              <strong>CPFs, CNPJs e códigos são removidos. Transferências entre pessoas físicas viram identificadores anônimos (&quot;Pix pessoa A&quot;). A IA só vê data, valor e estabelecimento limpo.</strong>
             </div>
           </div>
         </div>
